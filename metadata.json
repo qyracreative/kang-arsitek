@@ -1,0 +1,10 @@
+{
+  "name": "Kang Arsitek Prompt Generator",
+  "description": "Professional cinematic prompt generator for AI video production, specializing in architectural and environmental scenes.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "Prompt Engineering",
+    "Cinematic Scene Design",
+    "Architectural Visualization"
+  ]
+}
