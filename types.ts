@@ -610,17 +610,15 @@ export default function App() {
   // Deep linking: Load from URL parameters if present
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    const overrides: Partial<PromptState> = {};
-    
-    if (params.has('character')) overrides.character = decodeURIComponent(params.get('character') || '');
-    if (params.has('location')) overrides.location = decodeURIComponent(params.get('location') || '');
-    if (params.has('building')) overrides.building = decodeURIComponent(params.get('building') || '');
-    if (params.has('weather')) overrides.weather = decodeURIComponent(params.get('weather') || '');
-    if (params.has('theme')) overrides.theme = decodeURIComponent(params.get('theme') || '');
 
-    if (Object.keys(overrides).length > 0) {
-      setState(prev => ({ ...prev, ...overrides }));
-    }
+    setState(prev => ({
+      ...prev,
+      character: params.get("character") || "",
+      location: params.get("location") || "",
+      building: params.get("building") || "",
+      weather: params.get("weather") || "",
+      theme: params.get("theme") || "",
+    }));
   }, []);
 
   // Sync to localStorage as secondary backup
