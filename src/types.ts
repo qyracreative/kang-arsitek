@@ -1,4 +1,5 @@
 export type ProductionStatus = 'Draft' | 'Ready' | 'Generated' | 'Edited' | 'Uploaded';
+export type SyncStatus = 'idle' | 'syncing' | 'synced' | 'failed';
 
 export interface ScenePrompt {
   id: number;
@@ -13,4 +14,11 @@ export interface PromptState {
   weather: string;
   theme: string;
   status: ProductionStatus;
+}
+
+export interface Project extends PromptState {
+  id: string;
+  title: string;
+  prompts: ScenePrompt[];
+  createdAt: number;
 }

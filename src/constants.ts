@@ -1,59 +1,33 @@
 import { ProductionStatus } from './types';
 
 export const CHARACTERS = [
-  "A lone futuristic architect",
-  "A group of nomadic travelers",
-  "A digital nomad with a holographic laptop",
-  "A street photographer capturing shadows",
-  "A mysterious hooded figure",
-  "A child playing with a glowing kite",
-  "An elderly curator in a grand museum",
-  "A robotic maintenance crew",
+  "young female architect with tied black hair, stylish architect blazer, yellow construction helmet",
+  "mature male architect with architect vest, white construction helmet",
 ];
 
 export const LOCATIONS = [
-  "The neon-lit streets of Neo-Tokyo",
-  "A suspended forest above a cloud layer",
-  "A brutalist concrete oasis in the desert",
-  "Submerged ruins of a coastal city",
-  "A high-altitude arctic research station",
-  "The bustling marketplaces of Marrakech 2099",
-  "An abandoned space elevator terminal",
-  "Hidden valley beneath a waterfall",
+  "dense tropical forest clearing",
+  "beachside sandy construction site",
+  "rocky mountain plateau",
 ];
 
 export const BUILDINGS = [
-  "A spiraling glass cathedral",
-  "Modular floating housing blocks",
-  "A monolithic obsidian library",
-  "Sustainable bamboo skyscrapers",
-  "A transparent underwater dome",
-  "Retro-futuristic art deco hotels",
-  "An overgrown botanical atrium",
-  "A kinetic shape-shifting museum",
+  "luxurious modern tropical villa with glass walls",
+  "elegant minimalist house",
+  "futuristic glass skyscraper",
 ];
 
 export const WEATHER = [
-  "Heavy monsoon rain with cinematic reflections",
-  "Soft amber sunset with dusty air particles",
-  "Dense electromagnetic fog",
-  "Crisp blue hour with glowing neon lights",
-  "Blinding desert sandstorm with orange tint",
-  "Ethereal northern lights dancing above",
-  "Hyper-realistic midday sun with sharp shadows",
-  "Soft bioluminescent glow from local flora",
+  "bright golden sunlight with vibrant atmosphere",
+  "dramatic rainy daylight with wet surfaces",
 ];
 
 export const THEMES = [
-  "Cyberpunk Noir",
-  "Solarpunk Utopia",
-  "Ancient-Future Fusion",
-  "Minimalist Zen",
-  "Industrial Dystopia",
-  "Organic Surrealism",
-  "Retro-Space Age",
-  "Gothic High-Tech",
+  "luxury cinematic style",
+  "futuristic cinematic style",
 ];
+
+export const GOOGLE_SCRIPT_URL = ""; // SET YOUR GOOGLE APPS SCRIPT WEBAPP URL HERE
 
 export const STATUSES: ProductionStatus[] = [
   'Draft',
@@ -64,9 +38,9 @@ export const STATUSES: ProductionStatus[] = [
 ];
 
 export const STATUS_COLORS = {
-  Draft: "bg-slate-500/10 text-slate-400 border-slate-500/20",
+  Draft: "bg-zinc-500/10 text-zinc-400 border-zinc-500/20",
   Ready: "bg-blue-500/10 text-blue-400 border-blue-500/20",
-  Generated: "bg-purple-500/10 text-purple-400 border-purple-500/20",
-  Edited: "bg-amber-500/10 text-amber-400 border-amber-500/20",
+  Generated: "bg-yellow-500/10 text-yellow-400 border-yellow-500/20",
+  Edited: "bg-purple-500/10 text-purple-400 border-purple-500/20",
   Uploaded: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
 };
