@@ -66,17 +66,35 @@ export const fetchProjectsFromSheets = async (): Promise<Project[] | null> => {
   }
 
   try {
-    // Simple fetch is often the most compatible with Apps Script redirects
+    // A simple GET request (no custom headers) is less likely to trigger CORS preflight.
+    // Google Apps Script will handle this via its redirect mechanism.
     const response = await fetch(SCRIPT_URL);
 
     if (!response.ok) {
-      throw new Error(`HTTP ${response.status}`);
+      if (response.status === 404) {
+        throw new Error('Script URL not found (404). Check your VITE_GOOGLE_SCRIPT_URL.');
+      }
+      throw new Error(`Cloud Error: ${response.status} ${response.statusText}`);
     }
 
     const data = await response.json();
+    
+    if (!Array.isArray(data)) {
+      throw new Error('Invalid data format: Expected an array of projects.');
+    }
+
     return data as Project[];
   } catch (error) {
-    console.error('Fetch failed:', error);
+    // "Failed to fetch" is almost always a CORS or Network error with Apps Script
+    if (error instanceof TypeError && error.message === 'Failed to fetch') {
+      console.error('Google Sheets Connection Blocked (CORS):');
+      console.warn('1. Your VITE_GOOGLE_SCRIPT_URL might be wrong or missing.');
+      console.warn('2. Your Apps Script MUST be deployed as "Web App".');
+      console.warn('3. "Who has access" MUST be set to "Anyone" (not Anyone with Google Account).');
+      console.warn('4. Ensure your browser is not blocking the connection (e.g., ad-blockers).');
+    } else {
+      console.error('Sync Error (GET):', error);
+    }
     return null;
   }
 };

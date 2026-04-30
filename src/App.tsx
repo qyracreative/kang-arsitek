@@ -414,25 +414,35 @@ export default function App() {
       }
       
       // Try Google Sheets
-      const sheetsProjects = await fetchProjectsFromSheets();
-      
-      if (sheetsProjects) {
-        setProjects(sheetsProjects);
-        setSyncStatus('idle');
-      } else {
-        // Fallback to localStorage
-        const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
-        if (saved) {
-          try {
-            setProjects(JSON.parse(saved));
-          } catch (e) {
-            console.error('Failed to parse projects from localStorage', e);
-          }
+      try {
+        const sheetsProjects = await fetchProjectsFromSheets();
+        
+        if (sheetsProjects) {
+          setProjects(sheetsProjects);
+          setSyncStatus('idle');
+        } else {
+          // fetchProjectsFromSheets returns null on failure
+          setSyncStatus('failed');
+          loadLocalBackup();
         }
+      } catch (err) {
+        console.error('Initialization fetch error:', err);
         setSyncStatus('failed');
+        loadLocalBackup();
       }
       
       setIsLoadingHistory(false);
+    };
+
+    const loadLocalBackup = () => {
+      const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
+      if (saved) {
+        try {
+          setProjects(JSON.parse(saved));
+        } catch (e) {
+          console.error('Failed to parse projects from localStorage', e);
+        }
+      }
     };
 
     initializeData();
