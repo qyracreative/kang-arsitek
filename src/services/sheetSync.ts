@@ -45,6 +45,20 @@ export const syncProjectToSheets = async (project: Project): Promise<boolean> =>
   }
 };
 
+export const fetchProjectsFromSheets = async (): Promise<Project[] | null> => {
+  if (!SCRIPT_URL) return null;
+
+  try {
+    const response = await fetch(SCRIPT_URL);
+    if (!response.ok) throw new Error('Network response was not ok');
+    const data = await response.json();
+    return data as Project[];
+  } catch (error) {
+    console.error('Failed to fetch from Google Sheets:', error);
+    return null;
+  }
+};
+
 export const updateProjectStatusInSheets = async (projectId: string, status: ProductionStatus): Promise<boolean> => {
   if (!SCRIPT_URL) return false;
 

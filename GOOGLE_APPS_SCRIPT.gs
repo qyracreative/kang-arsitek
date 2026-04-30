@@ -99,5 +99,50 @@ function updateProjectStatus(sheet, projectId, status) {
 }
 
 function doGet(e) {
-  return ContentService.createTextOutput("Kang Arsitek Sync Engine is Active.");
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName("Projects");
+  
+  if (!sheet) {
+    return ContentService.createTextOutput(JSON.stringify([]))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+
+  var values = sheet.getDataRange().getValues();
+  var headers = values[0];
+  var results = [];
+
+  for (var i = 1; i < values.length; i++) {
+    var row = values[i];
+    var obj = {};
+    
+    // Custom mapping to match frontend Project type
+    obj.id = String(row[0]);
+    obj.title = String(row[1]);
+    obj.character = String(row[2]);
+    obj.location = String(row[3]);
+    obj.building = String(row[4]);
+    obj.weather = String(row[5]);
+    obj.theme = String(row[6]);
+    obj.status = String(row[7]);
+    
+    // Reconstruct prompts array
+    obj.prompts = [];
+    for (var j = 1; j <= 8; j++) {
+      var content = row[j + 7]; // Scene1 starts at column index 8
+      if (content) {
+        obj.prompts.push({
+          id: j,
+          title: "Scene " + j,
+          content: String(content)
+        });
+      }
+    }
+    
+    obj.createdAt = row[16] ? new Date(row[16]).getTime() : Date.now();
+    
+    results.push(obj);
+  }
+
+  return ContentService.createTextOutput(JSON.stringify(results))
+    .setMimeType(ContentService.MimeType.JSON);
 }

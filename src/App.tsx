@@ -36,7 +36,7 @@ import {
 } from './constants';
 import { PromptState, ScenePrompt, ProductionStatus, Project, SyncStatus } from './types';
 import { generateScenes } from './utils/promptGenerator';
-import { syncProjectToSheets, updateProjectStatusInSheets } from './services/sheetSync';
+import { syncProjectToSheets, updateProjectStatusInSheets, fetchProjectsFromSheets } from './services/sheetSync';
 
 // --- Utils ---
 const formatDate = (timestamp: number) => {
@@ -136,12 +136,14 @@ const ProjectSidebar = ({
   projects, 
   currentProjectId, 
   onProjectSelect, 
-  onDeleteProject 
+  onDeleteProject,
+  isLoading
 }: { 
   projects: Project[], 
   currentProjectId: string | null, 
   onProjectSelect: (id: string) => void,
-  onDeleteProject: (id: string) => void
+  onDeleteProject: (id: string) => void,
+  isLoading?: boolean
 }) => (
   <div className="flex flex-col h-full bg-zinc-950/50 backdrop-blur-xl border-r border-zinc-900 overflow-hidden">
     <div className="p-6 border-b border-zinc-900">
@@ -154,7 +156,14 @@ const ProjectSidebar = ({
     </div>
     
     <div className="flex-1 overflow-y-auto p-4 custom-scrollbar space-y-3">
-      {projects.length === 0 ? (
+      {isLoading ? (
+        <div className="py-20 text-center space-y-3">
+          <RefreshCcw className="w-8 h-8 mx-auto text-yellow-500/40 animate-spin" />
+          <p className="text-[10px] font-bold text-zinc-700 uppercase tracking-widest">
+            Fetching from Cloud...
+          </p>
+        </div>
+      ) : projects.length === 0 ? (
         <div className="py-20 text-center space-y-3">
           <Clock className="w-8 h-8 mx-auto text-zinc-800" />
           <p className="text-[10px] font-bold text-zinc-700 uppercase tracking-widest leading-relaxed">
@@ -314,6 +323,7 @@ const LOCAL_STORAGE_KEY = 'kang_arsitek_projects';
 
 export default function App() {
   const [projects, setProjects] = useState<Project[]>([]);
+  const [isLoadingHistory, setIsLoadingHistory] = useState(true);
   const [currentProjectId, setCurrentProjectId] = useState<string | null>(null);
   const [state, setState] = useState<PromptState>({
     character: CHARACTERS[0],
@@ -329,22 +339,42 @@ export default function App() {
   const [isCopyingAll, setIsCopyingAll] = useState(false);
   const [syncStatus, setSyncStatus] = useState<SyncStatus>('idle');
 
-  // Load from localStorage
+  // Load from Google Sheets or localStorage
   useEffect(() => {
-    const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
-    if (saved) {
-      try {
-        setProjects(JSON.parse(saved));
-      } catch (e) {
-        console.error('Failed to parse projects', e);
+    const initializeData = async () => {
+      setIsLoadingHistory(true);
+      
+      // Try Google Sheets first
+      const sheetsProjects = await fetchProjectsFromSheets();
+      
+      if (sheetsProjects) {
+        setProjects(sheetsProjects);
+        setSyncStatus('idle');
+      } else {
+        // Fallback to localStorage
+        const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
+        if (saved) {
+          try {
+            setProjects(JSON.parse(saved));
+          } catch (e) {
+            console.error('Failed to parse projects from localStorage', e);
+          }
+        }
+        setSyncStatus('failed');
       }
-    }
+      
+      setIsLoadingHistory(false);
+    };
+
+    initializeData();
   }, []);
 
-  // Save to localStorage
+  // Sync to localStorage as secondary backup
   useEffect(() => {
-    localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(projects));
-  }, [projects]);
+    if (!isLoadingHistory) {
+      localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(projects));
+    }
+  }, [projects, isLoadingHistory]);
 
   const handleGenerate = async () => {
     const scenes = generateScenes(state);
@@ -435,6 +465,7 @@ export default function App() {
           currentProjectId={currentProjectId}
           onProjectSelect={handleSelectProject}
           onDeleteProject={handleDeleteProject}
+          isLoading={isLoadingHistory}
         />
       </aside>
 
