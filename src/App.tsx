@@ -44,8 +44,12 @@ import {
 } from './services/sheetSync';
 
 // --- Utils ---
-const formatDate = (timestamp: number) => {
-  return new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric' }).format(new Date(timestamp));
+const formatDate = (timestamp: number | string | undefined | null) => {
+  if (!timestamp) return 'N/A';
+  const date = new Date(timestamp);
+  // Check if date is valid
+  if (isNaN(date.getTime())) return 'N/A';
+  return new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric' }).format(date);
 };
 
 // --- Sub-components ---
@@ -378,6 +382,30 @@ const LOCAL_STORAGE_KEY = 'kang_arsitek_projects';
 export default function App() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [isLoadingHistory, setIsLoadingHistory] = useState(true);
+  
+  // Helper to sanitize incoming project data (handle duplicates and invalid dates)
+  const sanitizeProjects = (data: any[]): Project[] => {
+    const projectMap = new Map<string, Project>();
+    
+    data.forEach(p => {
+      if (!p || typeof p !== 'object' || !p.id) return;
+      
+      // Ensure createdAt is a valid number
+      let timestamp = Number(p.createdAt);
+      if (isNaN(timestamp) || timestamp <= 0) {
+        timestamp = Date.now();
+      }
+      
+      projectMap.set(p.id, {
+        ...p,
+        createdAt: timestamp,
+        prompts: Array.isArray(p.prompts) ? p.prompts : []
+      });
+    });
+    
+    return Array.from(projectMap.values());
+  };
+
   const [currentProjectId, setCurrentProjectId] = useState<string | null>(null);
   const [state, setState] = useState<PromptState>({
     character: CHARACTERS[0],
@@ -418,7 +446,7 @@ export default function App() {
         const sheetsProjects = await fetchProjectsFromSheets();
         
         if (sheetsProjects) {
-          setProjects(sheetsProjects);
+          setProjects(sanitizeProjects(sheetsProjects));
           setSyncStatus('idle');
         } else {
           // fetchProjectsFromSheets returns null on failure
@@ -438,7 +466,10 @@ export default function App() {
       const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
       if (saved) {
         try {
-          setProjects(JSON.parse(saved));
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed)) {
+            setProjects(sanitizeProjects(parsed));
+          }
         } catch (e) {
           console.error('Failed to parse projects from localStorage', e);
         }
