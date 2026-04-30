@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   Building2, 
@@ -516,8 +516,30 @@ export default function App() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [syncStatus, setSyncStatus] = useState<SyncStatus>('idle');
 
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+
+    const character = params.get('character') || '';
+    const location = params.get('location') || '';
+    const building = params.get('building') || '';
+    const weather = params.get('weather') || '';
+    const theme = params.get('theme') || '';
+
+    if (character || location || building || weather || theme) {
+      setState(prev => ({
+        ...prev,
+        character,
+        location,
+        building,
+        weather,
+        theme
+      }));
+    }
+  }, []);
+  const lastOptionsHashRef = useRef<string>('');
+
   // Reusable initialization logic
-  const refreshData = async (silent = false) => {
+  const refreshData = useCallback(async (silent = false) => {
     if (!silent) setIsLoadingHistory(true);
     
     const configured = isSheetSyncConfigured();
@@ -529,7 +551,7 @@ export default function App() {
     }
     
     try {
-      setSyncStatus('syncing');
+      if (!silent) setSyncStatus('syncing');
       const [sheetsProjects, optionsData] = await Promise.all([
         fetchProjectsFromSheets(),
         fetchOptionsFromSheets()
@@ -537,32 +559,64 @@ export default function App() {
       
       if (optionsData) {
         setFetchedOptions(optionsData);
-        // If we haven't selected a project, set defaults from fetched options if fields are currently empty
-        setState(prev => ({
-          ...prev,
-          character: prev.character || optionsData.characters?.[0] || '',
-          location: prev.location || optionsData.locations?.[0] || '',
-          building: prev.building || optionsData.buildings?.[0] || '',
-          weather: prev.weather || optionsData.weather?.[0] || '',
-          theme: prev.theme || optionsData.themes?.[0] || '',
-        }));
+        
+        // AUTO FILL LOGIC: Detect if sheet prompts have changed
+        const optionsHash = JSON.stringify(optionsData);
+        if (optionsHash !== lastOptionsHashRef.current) {
+          const isInitialSync = lastOptionsHashRef.current === '';
+          lastOptionsHashRef.current = optionsHash;
+          
+          // Only auto-fill if we are in "Draft" mode (not viewing an old project)
+          if (!currentProjectId || state.status === 'Draft') {
+            setState(prev => {
+              // If it's the initial sync and we already have data (e.g. from URL params), 
+              // we DON'T want to overwrite with the first row of the sheet.
+              if (isInitialSync && (prev.character || prev.location || prev.building)) {
+                return prev;
+              }
+
+              return {
+                ...prev,
+                character: optionsData.characters?.[0] || prev.character,
+                location: optionsData.locations?.[0] || prev.location,
+                building: optionsData.buildings?.[0] || prev.building,
+                weather: optionsData.weather?.[0] || prev.weather,
+                theme: optionsData.themes?.[0] || prev.theme,
+              };
+            });
+          }
+        }
       }
 
       if (sheetsProjects) {
         setProjects(sanitizeProjects(sheetsProjects));
-        setSyncStatus('idle');
+        if (!silent) setSyncStatus('idle');
       } else {
-        setSyncStatus('failed');
+        if (!silent) setSyncStatus('failed');
         loadLocalBackup();
       }
     } catch (err) {
       console.error('Refresh failed:', err);
-      setSyncStatus('failed');
+      if (!silent) setSyncStatus('failed');
       loadLocalBackup();
     }
     
     if (!silent) setIsLoadingHistory(false);
-  };
+  }, [currentProjectId, state.status]);
+
+  // Set up polling (every 5 seconds)
+  useEffect(() => {
+    refreshData(); // Initial load
+    
+    const interval = setInterval(() => {
+      // Background sync
+      if (!isGenerating) {
+        refreshData(true);
+      }
+    }, 5000);
+
+    return () => clearInterval(interval);
+  }, [refreshData, isGenerating]);
 
   const loadLocalBackup = () => {
     const saved = localStorage.getItem(LOCAL_STORAGE_KEY);

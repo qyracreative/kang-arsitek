@@ -1,17 +1,40 @@
 import { Project, ProductionStatus, ScenePrompt } from '../types';
 
-const SCRIPT_URL = import.meta.env.VITE_GOOGLE_SCRIPT_URL || '';
+const SCRIPT_URL = (import.meta.env.VITE_GOOGLE_SCRIPT_URL || '').trim();
 
 export const isSheetSyncConfigured = () => {
   if (!SCRIPT_URL || SCRIPT_URL === '' || SCRIPT_URL.includes('YOUR_GOOGLE_APPS_SCRIPT')) {
     return false;
   }
+  
+  if (SCRIPT_URL.includes('/edit') || SCRIPT_URL.includes('spreadsheets/d/')) {
+    console.warn('VITE_GOOGLE_SCRIPT_URL seems to be a Google Sheet or Editor URL, not a Web App URL. Please deploy your script as a Web App (Deploy > New Deployment).');
+  }
+
   try {
-    // Basic URL validation
     const url = new URL(SCRIPT_URL);
+    if (!url.pathname.endsWith('/exec')) {
+      console.warn('VITE_GOOGLE_SCRIPT_URL typically ends with /exec for Google Apps Script Web Apps. Current URL might be incorrect.');
+    }
     return url.protocol === 'https:';
   } catch (e) {
     return false;
+  }
+};
+
+const buildUrl = (baseUrl: string, params: Record<string, string> = {}) => {
+  try {
+    const url = new URL(baseUrl);
+    Object.entries(params).forEach(([key, value]) => {
+      url.searchParams.set(key, value);
+    });
+    return url.toString();
+  } catch (e) {
+    // Fallback for simple string concatenation if URL is invalid (unlikely to work anyway)
+    const queryString = Object.entries(params)
+      .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(value)}`)
+      .join('&');
+    return queryString ? `${baseUrl}${baseUrl.includes('?') ? '&' : '?'}${queryString}` : baseUrl;
   }
 };
 
@@ -57,6 +80,7 @@ export const syncProjectToSheets = async (project: Project): Promise<boolean> =>
     await fetch(SCRIPT_URL, {
       method: 'POST',
       mode: 'no-cors',
+      redirect: 'follow',
       headers: {
         'Content-Type': 'text/plain', // Prevents preflight OPTIONS request
       },
@@ -77,7 +101,11 @@ export const fetchProjectsFromSheets = async (): Promise<Project[] | null> => {
   try {
     // A simple GET request (no custom headers) is less likely to trigger CORS preflight.
     // Google Apps Script will handle this via its redirect mechanism.
-    const response = await fetch(SCRIPT_URL);
+    const response = await fetch(buildUrl(SCRIPT_URL), {
+      method: 'GET',
+      mode: 'cors',
+      redirect: 'follow',
+    });
 
     if (!response.ok) {
       if (response.status === 404) {
@@ -121,6 +149,7 @@ export const updateProjectStatusInSheets = async (projectId: string, status: Pro
     await fetch(SCRIPT_URL, {
       method: 'POST',
       mode: 'no-cors',
+      redirect: 'follow',
       headers: {
         'Content-Type': 'text/plain',
       },
@@ -147,14 +176,23 @@ export const fetchOptionsFromSheets = async (): Promise<ConfigOptions | null> =>
   }
 
   try {
-    const response = await fetch(`${SCRIPT_URL}?type=options`);
+    const response = await fetch(buildUrl(SCRIPT_URL, { type: 'options' }), {
+      method: 'GET',
+      mode: 'cors',
+      redirect: 'follow'
+    });
     if (!response.ok) {
-      throw new Error(`HTTP ${response.status}`);
+      if (response.status === 404) {
+        throw new Error('Options endpoint not found (404). Ensure your Apps Script has a doGet(e) function handling type="options".');
+      }
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
     }
     const data = await response.json();
     return data as ConfigOptions;
   } catch (error) {
-    console.error('Fetch options failed:', error);
+    if (!(error instanceof Error && error.message.includes('404'))) {
+      console.error('Fetch options failed:', error);
+    }
     return null;
   }
 };
