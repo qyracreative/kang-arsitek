@@ -510,6 +510,19 @@ export default function App() {
     status: 'Draft',
   });
 
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+
+    setState(prev => ({
+      ...prev,
+      character: params.get("character") || "",
+      location: params.get("location") || "",
+      building: params.get("building") || "",
+      weather: params.get("weather") || "",
+      theme: params.get("theme") || "",
+    }));
+  }, []);
+
   const [generatedPrompts, setGeneratedPrompts] = useState<ScenePrompt[]>([]);
   const [copiedId, setCopiedId] = useState<number | null>(null);
   const [isCopyingAll, setIsCopyingAll] = useState(false);
@@ -542,18 +555,27 @@ export default function App() {
         // AUTO FILL LOGIC: Detect if sheet prompts have changed
         const optionsHash = JSON.stringify(optionsData);
         if (optionsHash !== lastOptionsHashRef.current) {
+          const isInitialSync = lastOptionsHashRef.current === '';
           lastOptionsHashRef.current = optionsHash;
           
           // Only auto-fill if we are in "Draft" mode (not viewing an old project)
           if (!currentProjectId || state.status === 'Draft') {
-            setState(prev => ({
-              ...prev,
-              character: optionsData.characters?.[0] || prev.character,
-              location: optionsData.locations?.[0] || prev.location,
-              building: optionsData.buildings?.[0] || prev.building,
-              weather: optionsData.weather?.[0] || prev.weather,
-              theme: optionsData.themes?.[0] || prev.theme,
-            }));
+            setState(prev => {
+              // If it's the initial sync and we already have data (e.g. from URL params), 
+              // we DON'T want to overwrite with the first row of the sheet.
+              if (isInitialSync && (prev.character || prev.location || prev.building)) {
+                return prev;
+              }
+
+              return {
+                ...prev,
+                character: optionsData.characters?.[0] || prev.character,
+                location: optionsData.locations?.[0] || prev.location,
+                building: optionsData.buildings?.[0] || prev.building,
+                weather: optionsData.weather?.[0] || prev.weather,
+                theme: optionsData.themes?.[0] || prev.theme,
+              };
+            });
           }
         }
       }
@@ -605,20 +627,6 @@ export default function App() {
   // Load from Google Sheets or localStorage on startup
   useEffect(() => {
     refreshData();
-  }, []);
-
-  // Deep linking: Load from URL parameters if present
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-
-    setState(prev => ({
-      ...prev,
-      character: params.get("character") || "",
-      location: params.get("location") || "",
-      building: params.get("building") || "",
-      weather: params.get("weather") || "",
-      theme: params.get("theme") || "",
-    }));
   }, []);
 
   // Sync to localStorage as secondary backup
