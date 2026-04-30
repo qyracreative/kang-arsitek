@@ -1,5 +1,5 @@
 export type ProductionStatus = 'Draft' | 'Ready' | 'Generated' | 'Edited' | 'Uploaded';
-export type SyncStatus = 'idle' | 'syncing' | 'synced' | 'failed';
+export type SyncStatus = 'idle' | 'syncing' | 'synced' | 'failed' | 'unconfigured';
 
 export interface ScenePrompt {
   id: number;

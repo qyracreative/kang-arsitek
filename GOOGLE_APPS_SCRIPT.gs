@@ -108,41 +108,57 @@ function doGet(e) {
   }
 
   var values = sheet.getDataRange().getValues();
-  var headers = values[0];
+  if (values.length <= 1) {
+    return ContentService.createTextOutput(JSON.stringify([]))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+
   var results = [];
 
   for (var i = 1; i < values.length; i++) {
     var row = values[i];
-    var obj = {};
+    var obj = {
+      id: String(row[0] || ""),
+      title: String(row[1] || "Untitled Project"),
+      character: String(row[2] || ""),
+      location: String(row[3] || ""),
+      building: String(row[4] || ""),
+      weather: String(row[5] || ""),
+      theme: String(row[6] || ""),
+      status: String(row[7] || "Draft"),
+      prompts: [],
+      createdAt: 0
+    };
     
-    // Custom mapping to match frontend Project type
-    obj.id = String(row[0]);
-    obj.title = String(row[1]);
-    obj.character = String(row[2]);
-    obj.location = String(row[3]);
-    obj.building = String(row[4]);
-    obj.weather = String(row[5]);
-    obj.theme = String(row[6]);
-    obj.status = String(row[7]);
+    // Safety check for ID
+    if (!obj.id) continue;
     
-    // Reconstruct prompts array
-    obj.prompts = [];
-    for (var j = 1; j <= 8; j++) {
-      var content = row[j + 7]; // Scene1 starts at column index 8
+    // Reconstruct prompts array (Scene1-8 at cols 8-15)
+    for (var j = 0; j < 8; j++) {
+      var content = row[j + 8]; 
       if (content) {
         obj.prompts.push({
-          id: j,
-          title: "Scene " + j,
+          id: j + 1,
+          title: "Scene " + (j + 1),
           content: String(content)
         });
       }
     }
     
-    obj.createdAt = row[16] ? new Date(row[16]).getTime() : Date.now();
+    // Handle Timestamp safely
+    try {
+      var dateVal = row[16];
+      obj.createdAt = dateVal instanceof Date ? dateVal.getTime() : new Date(dateVal).getTime();
+      if (isNaN(obj.createdAt)) obj.createdAt = Date.now();
+    } catch (err) {
+      obj.createdAt = Date.now();
+    }
     
     results.push(obj);
   }
 
-  return ContentService.createTextOutput(JSON.stringify(results))
+  // Use JSON.stringify with null, 2 for preview if needed, but standard for production
+  var json = JSON.stringify(results);
+  return ContentService.createTextOutput(json)
     .setMimeType(ContentService.MimeType.JSON);
 }

@@ -36,7 +36,12 @@ import {
 } from './constants';
 import { PromptState, ScenePrompt, ProductionStatus, Project, SyncStatus } from './types';
 import { generateScenes } from './utils/promptGenerator';
-import { syncProjectToSheets, updateProjectStatusInSheets, fetchProjectsFromSheets } from './services/sheetSync';
+import { 
+  syncProjectToSheets, 
+  updateProjectStatusInSheets, 
+  fetchProjectsFromSheets,
+  isSheetSyncConfigured 
+} from './services/sheetSync';
 
 // --- Utils ---
 const formatDate = (timestamp: number) => {
@@ -51,11 +56,15 @@ const SyncBadge = ({ status }: { status: SyncStatus }) => {
   const config = {
     syncing: { icon: <RefreshCcw className="w-3 h-3 animate-spin" />, text: 'Syncing...', color: 'text-blue-400 bg-blue-500/10 border-blue-500/20' },
     synced: { icon: <CloudCheck className="w-3 h-3" />, text: 'Synced', color: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20' },
-    failed: { icon: <AlertCircle className="w-3 h-3" />, text: 'Sync Failed', color: 'text-red-400 bg-red-500/10 border-red-500/20' }
+    failed: { icon: <AlertCircle className="w-3 h-3" />, text: 'Sync Failed', color: 'text-red-400 bg-red-500/10 border-red-500/20' },
+    unconfigured: { icon: <AlertCircle className="w-3 h-3" />, text: 'Sync Offline', color: 'text-zinc-500 bg-zinc-500/10 border-zinc-500/20' }
   }[status];
 
   return (
-    <div className={`flex items-center gap-1.5 px-2 py-0.5 rounded-full border text-[9px] font-black uppercase tracking-widest ${config.color} animate-in fade-in duration-300`}>
+    <div 
+      className={`flex items-center gap-1.5 px-2 py-0.5 rounded-full border text-[9px] font-black uppercase tracking-widest ${config.color} animate-in fade-in duration-300`}
+      title={status === 'unconfigured' ? 'Configure VITE_GOOGLE_SCRIPT_URL in your environment' : ''}
+    >
       {config.icon}
       {config.text}
     </div>
@@ -137,13 +146,15 @@ const ProjectSidebar = ({
   currentProjectId, 
   onProjectSelect, 
   onDeleteProject,
-  isLoading
+  isLoading,
+  syncError
 }: { 
   projects: Project[], 
   currentProjectId: string | null, 
   onProjectSelect: (id: string) => void,
   onDeleteProject: (id: string) => void,
-  isLoading?: boolean
+  isLoading?: boolean,
+  syncError?: boolean
 }) => (
   <div className="flex flex-col h-full bg-zinc-950/50 backdrop-blur-xl border-r border-zinc-900 overflow-hidden">
     <div className="p-6 border-b border-zinc-900">
@@ -163,12 +174,33 @@ const ProjectSidebar = ({
             Fetching from Cloud...
           </p>
         </div>
+      ) : syncError ? (
+        <div className="p-4 mx-4 rounded-xl border border-red-500/10 bg-red-500/5 space-y-4 animate-in fade-in zoom-in duration-500">
+          <div className="flex items-center gap-2 text-red-500">
+            <AlertCircle className="w-4 h-4" />
+            <span className="text-[10px] font-black uppercase tracking-widest">Connectivity Issue</span>
+          </div>
+          <div className="space-y-2">
+            <p className="text-[9px] text-zinc-500 font-bold uppercase leading-relaxed">
+              Google Sheets sync is failing. Verify your <span className="text-zinc-300">VITE_GOOGLE_SCRIPT_URL</span> is correct and deployed with <span className="text-zinc-300">"Anyone"</span> access.
+            </p>
+          </div>
+          <button 
+            onClick={() => window.location.reload()}
+            className="w-full py-2 bg-red-500/10 hover:bg-red-500/20 text-red-500 text-[9px] font-black uppercase tracking-widest rounded-lg transition-colors border border-red-500/20"
+          >
+            Retry Connection
+          </button>
+        </div>
       ) : projects.length === 0 ? (
-        <div className="py-20 text-center space-y-3">
+        <div className="py-20 text-center space-y-4">
           <Clock className="w-8 h-8 mx-auto text-zinc-800" />
-          <p className="text-[10px] font-bold text-zinc-700 uppercase tracking-widest leading-relaxed">
-            No history yet<br/>Generate to save
-          </p>
+          <div className="space-y-1">
+            <p className="text-[10px] font-bold text-zinc-700 uppercase tracking-widest leading-relaxed">
+              No history found
+            </p>
+            <p className="text-[9px] text-zinc-800 font-medium uppercase">Generate to save project</p>
+          </div>
         </div>
       ) : (
         <AnimatePresence mode="popLayout" initial={false}>
@@ -186,6 +218,28 @@ const ProjectSidebar = ({
           ))}
         </AnimatePresence>
       )}
+    </div>
+
+    {/* Setup Helper Footer */}
+    <div className="p-4 bg-zinc-950 border-t border-zinc-900 space-y-2">
+      {syncError && projects.length > 0 && (
+        <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-red-500/10 border border-red-500/20 mb-2">
+          <AlertCircle className="w-3 h-3 text-red-500" />
+          <span className="text-[8px] font-black text-red-500/80 uppercase tracking-tighter">Sync Failing: Local data shown</span>
+        </div>
+      )}
+      <button 
+        onClick={() => {
+          if (confirm('Clear local history? This cannot be undone.')) {
+            localStorage.removeItem(LOCAL_STORAGE_KEY);
+            window.location.reload();
+          }
+        }}
+        className="w-full flex items-center justify-center gap-2 py-3 rounded-xl border border-zinc-800 bg-zinc-900/50 hover:bg-zinc-900 text-[10px] font-black uppercase tracking-widest text-zinc-600 transition-all active:scale-[0.98]"
+      >
+        <RefreshCcw className="w-3 h-3" />
+        Force Refetch
+      </button>
     </div>
   </div>
 );
@@ -344,7 +398,22 @@ export default function App() {
     const initializeData = async () => {
       setIsLoadingHistory(true);
       
-      // Try Google Sheets first
+      const configured = isSheetSyncConfigured();
+      if (!configured) {
+        setSyncStatus('unconfigured');
+        const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
+        if (saved) {
+          try {
+            setProjects(JSON.parse(saved));
+          } catch (e) {
+            console.error('Failed to parse projects from localStorage', e);
+          }
+        }
+        setIsLoadingHistory(false);
+        return;
+      }
+      
+      // Try Google Sheets
       const sheetsProjects = await fetchProjectsFromSheets();
       
       if (sheetsProjects) {
@@ -411,7 +480,16 @@ export default function App() {
       // Update sync status in Google Sheets
       setSyncStatus('syncing');
       const success = await updateProjectStatusInSheets(currentProjectId, status);
-      setSyncStatus(success ? 'synced' : 'failed');
+      
+      if (!success) {
+        setSyncStatus('failed');
+        // Optional: Re-try once
+        const retrySuccess = await updateProjectStatusInSheets(currentProjectId, status);
+        if (retrySuccess) setSyncStatus('synced');
+      } else {
+        setSyncStatus('synced');
+      }
+      
       if (success) {
         setTimeout(() => setSyncStatus('idle'), 3000);
       }
@@ -466,6 +544,7 @@ export default function App() {
           onProjectSelect={handleSelectProject}
           onDeleteProject={handleDeleteProject}
           isLoading={isLoadingHistory}
+          syncError={syncStatus === 'failed'}
         />
       </aside>
 

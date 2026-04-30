@@ -2,9 +2,22 @@ import { Project, ProductionStatus } from '../types';
 
 const SCRIPT_URL = import.meta.env.VITE_GOOGLE_SCRIPT_URL || '';
 
+export const isSheetSyncConfigured = () => {
+  if (!SCRIPT_URL || SCRIPT_URL === '' || SCRIPT_URL.includes('YOUR_GOOGLE_APPS_SCRIPT')) {
+    return false;
+  }
+  try {
+    // Basic URL validation
+    const url = new URL(SCRIPT_URL);
+    return url.protocol === 'https:';
+  } catch (e) {
+    return false;
+  }
+};
+
 export const syncProjectToSheets = async (project: Project): Promise<boolean> => {
-  if (!SCRIPT_URL) {
-    console.warn('Google Script URL is not configured. Sync skipped.');
+  if (!isSheetSyncConfigured()) {
+    console.warn('Google Script URL is not configured. Sync to Google Sheets is disabled.');
     return false;
   }
 
@@ -30,37 +43,46 @@ export const syncProjectToSheets = async (project: Project): Promise<boolean> =>
   };
 
   try {
-    const response = await fetch(SCRIPT_URL, {
+    // Mode 'no-cors' allows sending data to Apps Script without CORs issues for POST,
+    // although we cannot read the response body.
+    await fetch(SCRIPT_URL, {
       method: 'POST',
-      mode: 'no-cors', // Apps Script often requires no-cors for simple POST
+      mode: 'no-cors',
       headers: {
-        'Content-Type': 'application/json',
+        'Content-Type': 'text/plain', // Prevents preflight OPTIONS request
       },
       body: JSON.stringify(payload),
     });
-    return true; // With no-cors, we can't really read the response status, but we assume success if no error is thrown
+    return true; 
   } catch (error) {
-    console.error('Failed to sync to Google Sheets:', error);
+    console.error('Sheet Sync Error (POST):', error);
     return false;
   }
 };
 
 export const fetchProjectsFromSheets = async (): Promise<Project[] | null> => {
-  if (!SCRIPT_URL) return null;
+  if (!isSheetSyncConfigured()) {
+    return null;
+  }
 
   try {
+    // Simple fetch is often the most compatible with Apps Script redirects
     const response = await fetch(SCRIPT_URL);
-    if (!response.ok) throw new Error('Network response was not ok');
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+
     const data = await response.json();
     return data as Project[];
   } catch (error) {
-    console.error('Failed to fetch from Google Sheets:', error);
+    console.error('Fetch failed:', error);
     return null;
   }
 };
 
 export const updateProjectStatusInSheets = async (projectId: string, status: ProductionStatus): Promise<boolean> => {
-  if (!SCRIPT_URL) return false;
+  if (!isSheetSyncConfigured()) return false;
 
   const payload = {
     action: 'updateStatus',
@@ -73,13 +95,13 @@ export const updateProjectStatusInSheets = async (projectId: string, status: Pro
       method: 'POST',
       mode: 'no-cors',
       headers: {
-        'Content-Type': 'application/json',
+        'Content-Type': 'text/plain',
       },
       body: JSON.stringify(payload),
     });
     return true;
   } catch (error) {
-    console.error('Failed to update status in Google Sheets:', error);
+    console.error('Sheet Sync Error (Update):', error);
     return false;
   }
 };
