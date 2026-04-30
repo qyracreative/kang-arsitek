@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   Building2, 
@@ -262,29 +262,19 @@ const ProjectSidebar = ({
   </div>
 );
 
-const PromptForm = ({ state, setState, onGenerate, isGenerating, onAutoFill }: { 
+const PromptForm = ({ state, setState, onGenerate, isGenerating }: { 
   state: PromptState, 
   setState: React.Dispatch<React.SetStateAction<PromptState>>,
   onGenerate: () => void,
-  isGenerating: boolean,
-  onAutoFill: () => void
+  isGenerating: boolean
 }) => (
   <div className="bg-zinc-900/50 backdrop-blur-xl border border-zinc-800 rounded-2xl p-6 space-y-6 shadow-2xl">
-    <div className="flex items-center justify-between">
-      <h2 className="text-sm font-bold text-zinc-400 flex items-center gap-2.5 uppercase tracking-wider">
-        <div className="w-8 h-8 rounded-lg bg-yellow-500/10 flex items-center justify-center border border-yellow-500/20">
-          <Sparkles className="w-4 h-4 text-yellow-500" />
-        </div>
-        Configurator
-      </h2>
-      <button 
-        onClick={onAutoFill}
-        className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-[10px] font-black uppercase tracking-widest text-zinc-400 transition-all active:scale-95 border border-zinc-700/50"
-      >
-        <Sparkles className="w-3.5 h-3.5 text-yellow-500" />
-        Auto Fill
-      </button>
-    </div>
+    <h2 className="text-sm font-bold text-zinc-400 flex items-center gap-2.5 uppercase tracking-wider">
+      <div className="w-8 h-8 rounded-lg bg-yellow-500/10 flex items-center justify-center border border-yellow-500/20">
+        <Sparkles className="w-4 h-4 text-yellow-500" />
+      </div>
+      Configurator
+    </h2>
 
     <div className="space-y-5">
       <InputField 
@@ -525,9 +515,10 @@ export default function App() {
   const [isCopyingAll, setIsCopyingAll] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [syncStatus, setSyncStatus] = useState<SyncStatus>('idle');
+  const lastOptionsHashRef = useRef<string>('');
 
   // Reusable initialization logic
-  const refreshData = async (silent = false) => {
+  const refreshData = useCallback(async (silent = false) => {
     if (!silent) setIsLoadingHistory(true);
     
     const configured = isSheetSyncConfigured();
@@ -539,7 +530,7 @@ export default function App() {
     }
     
     try {
-      setSyncStatus('syncing');
+      if (!silent) setSyncStatus('syncing');
       const [sheetsProjects, optionsData] = await Promise.all([
         fetchProjectsFromSheets(),
         fetchOptionsFromSheets()
@@ -547,32 +538,55 @@ export default function App() {
       
       if (optionsData) {
         setFetchedOptions(optionsData);
-        // If we haven't selected a project, set defaults from fetched options if fields are currently empty
-        setState(prev => ({
-          ...prev,
-          character: prev.character || optionsData.characters?.[0] || '',
-          location: prev.location || optionsData.locations?.[0] || '',
-          building: prev.building || optionsData.buildings?.[0] || '',
-          weather: prev.weather || optionsData.weather?.[0] || '',
-          theme: prev.theme || optionsData.themes?.[0] || '',
-        }));
+        
+        // AUTO FILL LOGIC: Detect if sheet prompts have changed
+        const optionsHash = JSON.stringify(optionsData);
+        if (optionsHash !== lastOptionsHashRef.current) {
+          lastOptionsHashRef.current = optionsHash;
+          
+          // Only auto-fill if we are in "Draft" mode (not viewing an old project)
+          if (!currentProjectId || state.status === 'Draft') {
+            setState(prev => ({
+              ...prev,
+              character: optionsData.characters?.[0] || prev.character,
+              location: optionsData.locations?.[0] || prev.location,
+              building: optionsData.buildings?.[0] || prev.building,
+              weather: optionsData.weather?.[0] || prev.weather,
+              theme: optionsData.themes?.[0] || prev.theme,
+            }));
+          }
+        }
       }
 
       if (sheetsProjects) {
         setProjects(sanitizeProjects(sheetsProjects));
-        setSyncStatus('idle');
+        if (!silent) setSyncStatus('idle');
       } else {
-        setSyncStatus('failed');
+        if (!silent) setSyncStatus('failed');
         loadLocalBackup();
       }
     } catch (err) {
       console.error('Refresh failed:', err);
-      setSyncStatus('failed');
+      if (!silent) setSyncStatus('failed');
       loadLocalBackup();
     }
     
     if (!silent) setIsLoadingHistory(false);
-  };
+  }, [currentProjectId, state.status]);
+
+  // Set up polling (every 5 seconds)
+  useEffect(() => {
+    refreshData(); // Initial load
+    
+    const interval = setInterval(() => {
+      // Background sync
+      if (!isGenerating) {
+        refreshData(true);
+      }
+    }, 5000);
+
+    return () => clearInterval(interval);
+  }, [refreshData, isGenerating]);
 
   const loadLocalBackup = () => {
     const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
@@ -593,33 +607,28 @@ export default function App() {
     refreshData();
   }, []);
 
+  // Deep linking: Load from URL parameters if present
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const overrides: Partial<PromptState> = {};
+    
+    if (params.has('character')) overrides.character = decodeURIComponent(params.get('character') || '');
+    if (params.has('location')) overrides.location = decodeURIComponent(params.get('location') || '');
+    if (params.has('building')) overrides.building = decodeURIComponent(params.get('building') || '');
+    if (params.has('weather')) overrides.weather = decodeURIComponent(params.get('weather') || '');
+    if (params.has('theme')) overrides.theme = decodeURIComponent(params.get('theme') || '');
+
+    if (Object.keys(overrides).length > 0) {
+      setState(prev => ({ ...prev, ...overrides }));
+    }
+  }, []);
+
   // Sync to localStorage as secondary backup
   useEffect(() => {
     if (!isLoadingHistory) {
       localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(projects));
     }
   }, [projects, isLoadingHistory]);
-
-  const handleAutoFill = async () => {
-    setSyncStatus('syncing');
-    const optionsData = await fetchOptionsFromSheets();
-    
-    if (optionsData) {
-      setFetchedOptions(optionsData);
-      setState(prev => ({
-        ...prev,
-        character: optionsData.characters?.[0] || prev.character,
-        location: optionsData.locations?.[0] || prev.location,
-        building: optionsData.buildings?.[0] || prev.building,
-        weather: optionsData.weather?.[0] || prev.weather,
-        theme: optionsData.themes?.[0] || prev.theme,
-      }));
-      setSyncStatus('idle');
-    } else {
-      setSyncStatus('failed');
-      alert("Failed to fetch fresh data from Google Sheets.");
-    }
-  };
 
   const handleGenerate = async () => {
     if (!state.character || !state.building || !state.location) {
@@ -783,7 +792,6 @@ export default function App() {
                 setState={setState} 
                 onGenerate={handleGenerate} 
                 isGenerating={isGenerating}
-                onAutoFill={handleAutoFill}
               />
             </section>
 

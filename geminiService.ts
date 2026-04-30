@@ -57,6 +57,7 @@ export const syncProjectToSheets = async (project: Project): Promise<boolean> =>
     await fetch(SCRIPT_URL, {
       method: 'POST',
       mode: 'no-cors',
+      redirect: 'follow',
       headers: {
         'Content-Type': 'text/plain', // Prevents preflight OPTIONS request
       },
@@ -77,7 +78,14 @@ export const fetchProjectsFromSheets = async (): Promise<Project[] | null> => {
   try {
     // A simple GET request (no custom headers) is less likely to trigger CORS preflight.
     // Google Apps Script will handle this via its redirect mechanism.
-    const response = await fetch(SCRIPT_URL);
+    const response = await fetch(SCRIPT_URL, {
+      method: 'GET',
+      mode: 'cors',
+      redirect: 'follow',
+      headers: {
+        'Accept': 'application/json'
+      }
+    });
 
     if (!response.ok) {
       if (response.status === 404) {
@@ -121,6 +129,7 @@ export const updateProjectStatusInSheets = async (projectId: string, status: Pro
     await fetch(SCRIPT_URL, {
       method: 'POST',
       mode: 'no-cors',
+      redirect: 'follow',
       headers: {
         'Content-Type': 'text/plain',
       },
@@ -147,7 +156,14 @@ export const fetchOptionsFromSheets = async (): Promise<ConfigOptions | null> =>
   }
 
   try {
-    const response = await fetch(`${SCRIPT_URL}?type=options`);
+    const response = await fetch(`${SCRIPT_URL}?type=options`, {
+      method: 'GET',
+      mode: 'cors',
+      redirect: 'follow',
+      headers: {
+        'Accept': 'application/json'
+      }
+    });
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}`);
     }
