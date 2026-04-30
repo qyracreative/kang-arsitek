@@ -35,12 +35,14 @@ import {
   STATUS_COLORS 
 } from './constants';
 import { PromptState, ScenePrompt, ProductionStatus, Project, SyncStatus } from './types';
-import { generateScenes } from './utils/promptGenerator';
+import { generateCinematicPrompts } from './services/geminiService';
 import { 
   syncProjectToSheets, 
   updateProjectStatusInSheets, 
   fetchProjectsFromSheets,
-  isSheetSyncConfigured 
+  fetchOptionsFromSheets,
+  isSheetSyncConfigured,
+  ConfigOptions
 } from './services/sheetSync';
 
 // --- Utils ---
@@ -150,6 +152,7 @@ const ProjectSidebar = ({
   currentProjectId, 
   onProjectSelect, 
   onDeleteProject,
+  onRefresh,
   isLoading,
   syncError
 }: { 
@@ -157,6 +160,7 @@ const ProjectSidebar = ({
   currentProjectId: string | null, 
   onProjectSelect: (id: string) => void,
   onDeleteProject: (id: string) => void,
+  onRefresh: () => void,
   isLoading?: boolean,
   syncError?: boolean
 }) => (
@@ -182,7 +186,7 @@ const ProjectSidebar = ({
         <div className="p-4 mx-4 rounded-xl border border-red-500/10 bg-red-500/5 space-y-4 animate-in fade-in zoom-in duration-500">
           <div className="flex items-center gap-2 text-red-500">
             <AlertCircle className="w-4 h-4" />
-            <span className="text-[10px] font-black uppercase tracking-widest">Connectivity Issue</span>
+            <span className="text-[10px] font-black uppercase tracking-widest">Google Sheets Connection Error</span>
           </div>
           <div className="space-y-2">
             <p className="text-[9px] text-zinc-500 font-bold uppercase leading-relaxed">
@@ -190,7 +194,7 @@ const ProjectSidebar = ({
             </p>
           </div>
           <button 
-            onClick={() => window.location.reload()}
+            onClick={onRefresh}
             className="w-full py-2 bg-red-500/10 hover:bg-red-500/20 text-red-500 text-[9px] font-black uppercase tracking-widest rounded-lg transition-colors border border-red-500/20"
           >
             Retry Connection
@@ -232,26 +236,37 @@ const ProjectSidebar = ({
           <span className="text-[8px] font-black text-red-500/80 uppercase tracking-tighter">Sync Failing: Local data shown</span>
         </div>
       )}
-      <button 
-        onClick={() => {
-          if (confirm('Clear local history? This cannot be undone.')) {
-            localStorage.removeItem(LOCAL_STORAGE_KEY);
-            window.location.reload();
-          }
-        }}
-        className="w-full flex items-center justify-center gap-2 py-3 rounded-xl border border-zinc-800 bg-zinc-900/50 hover:bg-zinc-900 text-[10px] font-black uppercase tracking-widest text-zinc-600 transition-all active:scale-[0.98]"
-      >
-        <RefreshCcw className="w-3 h-3" />
-        Force Refetch
-      </button>
+      <div className="grid grid-cols-2 gap-2">
+        <button 
+          onClick={onRefresh}
+          className="flex items-center justify-center gap-2 py-3 rounded-xl border border-zinc-800 bg-zinc-900/50 hover:bg-zinc-900 text-[10px] font-black uppercase tracking-widest text-zinc-600 transition-all active:scale-[0.98]"
+        >
+          <RefreshCcw className="w-3 h-3" />
+          Refresh
+        </button>
+        <button 
+          onClick={() => {
+            if (confirm('Clear local history? This cannot be undone.')) {
+              localStorage.removeItem(LOCAL_STORAGE_KEY);
+              window.location.reload();
+            }
+          }}
+          className="flex items-center justify-center gap-2 py-3 rounded-xl border border-zinc-800 bg-zinc-900/50 hover:bg-zinc-900 text-[10px] font-black uppercase tracking-widest text-zinc-600/50 hover:text-red-500/50 transition-all active:scale-[0.98]"
+          title="Reset Local Cache"
+        >
+          <Trash2 className="w-3 h-3" />
+          Reset
+        </button>
+      </div>
     </div>
   </div>
 );
 
-const PromptForm = ({ state, setState, onGenerate }: { 
+const PromptForm = ({ state, setState, onGenerate, isGenerating }: { 
   state: PromptState, 
   setState: React.Dispatch<React.SetStateAction<PromptState>>,
-  onGenerate: () => void
+  onGenerate: () => void,
+  isGenerating: boolean
 }) => (
   <div className="bg-zinc-900/50 backdrop-blur-xl border border-zinc-800 rounded-2xl p-6 space-y-6 shadow-2xl">
     <h2 className="text-sm font-bold text-zinc-400 flex items-center gap-2.5 uppercase tracking-wider">
@@ -262,49 +277,58 @@ const PromptForm = ({ state, setState, onGenerate }: {
     </h2>
 
     <div className="space-y-5">
-      <Selector 
+      <InputField 
         label="Character" 
         icon={<User className="w-3.5 h-3.5" />}
         value={state.character}
-        options={CHARACTERS}
         onChange={(v) => setState(prev => ({ ...prev, character: v }))}
       />
-      <Selector 
+      <InputField 
         label="Location" 
         icon={<MapPin className="w-3.5 h-3.5" />}
         value={state.location}
-        options={LOCATIONS}
         onChange={(v) => setState(prev => ({ ...prev, location: v }))}
       />
-      <Selector 
+      <InputField 
         label="Building" 
         icon={<Building2 className="w-3.5 h-3.5" />}
         value={state.building}
-        options={BUILDINGS}
         onChange={(v) => setState(prev => ({ ...prev, building: v }))}
       />
-      <Selector 
+      <InputField 
         label="Weather" 
         icon={<CloudSun className="w-3.5 h-3.5" />}
         value={state.weather}
-        options={WEATHER}
         onChange={(v) => setState(prev => ({ ...prev, weather: v }))}
       />
-      <Selector 
+      <InputField 
         label="Theme" 
         icon={<Palette className="w-3.5 h-3.5" />}
         value={state.theme}
-        options={THEMES}
         onChange={(v) => setState(prev => ({ ...prev, theme: v }))}
       />
     </div>
 
     <button
       onClick={onGenerate}
-      className="w-full py-4 rounded-xl bg-yellow-500 text-black font-extrabold hover:bg-yellow-400 transition-all flex items-center justify-center gap-3 shadow-lg shadow-yellow-500/10 active:scale-[0.98] uppercase tracking-wider text-sm"
+      disabled={isGenerating}
+      className={`w-full py-4 rounded-xl font-extrabold transition-all flex items-center justify-center gap-3 shadow-lg active:scale-[0.98] uppercase tracking-wider text-sm ${
+        isGenerating 
+        ? 'bg-zinc-800 text-zinc-500 cursor-not-allowed border border-zinc-700' 
+        : 'bg-yellow-500 text-black hover:bg-yellow-400 shadow-yellow-500/10'
+      }`}
     >
-      <MonitorPlay className="w-5 h-5" />
-      Generate 8 Scene Prompts
+      {isGenerating ? (
+        <>
+          <RefreshCcw className="w-5 h-5 animate-spin" />
+          Processing AI Masterpiece...
+        </>
+      ) : (
+        <>
+          <MonitorPlay className="w-5 h-5" />
+          Generate 8 Scene Prompts
+        </>
+      )}
     </button>
   </div>
 );
@@ -321,37 +345,79 @@ const SceneCard = ({ scene, onCopy, isCopied }: SceneCardProps) => (
     layout
     initial={{ opacity: 0, scale: 0.95 }}
     animate={{ opacity: 1, scale: 1 }}
-    className="bg-zinc-900/40 backdrop-blur-md border border-zinc-800/80 rounded-2xl p-6 transition-all duration-300 hover:border-zinc-700 hover:bg-zinc-900/60 group relative flex flex-col h-full"
+    className="bg-zinc-900/40 backdrop-blur-md border border-zinc-800/80 rounded-2xl p-6 transition-all duration-300 hover:border-zinc-700 hover:bg-zinc-900/60 group relative flex flex-col h-full overflow-hidden"
   >
-    <div className="flex items-center justify-between mb-4">
-      <div className="flex items-center gap-2.5">
-        <div className="w-8 h-8 rounded-lg bg-zinc-800 flex items-center justify-center text-[11px] font-black text-yellow-500 border border-zinc-700">
+    {/* Scene Header */}
+    <div className="flex items-center justify-between mb-5">
+      <div className="flex items-center gap-3">
+        <div className="w-9 h-9 rounded-xl bg-yellow-500/10 flex items-center justify-center text-xs font-black text-yellow-500 border border-yellow-500/20 shadow-sm">
           {scene.id}
         </div>
-        <span className="text-[11px] font-black uppercase tracking-[0.15em] text-zinc-300">{scene.title.split(': ')[1] || scene.title}</span>
+        <div>
+          <span className="block text-[10px] font-black uppercase tracking-[0.2em] text-zinc-500 leading-none mb-1">Timeline Sequence</span>
+          <span className="block text-[12px] font-black uppercase tracking-widest text-zinc-200">{scene.title.split(': ')[1] || scene.title}</span>
+        </div>
       </div>
       <button 
-        onClick={() => onCopy(scene.content, scene.id)}
-        className="p-2 rounded-lg bg-zinc-800/50 hover:bg-zinc-700 transition-all text-zinc-400 hover:text-white border border-transparent hover:border-zinc-600"
-        title="Copy scene prompt"
+        onClick={() => {
+          const content = `Visual: ${scene.visualPrompt}\nCamera: ${scene.cameraEffect}\nSound: ${scene.soundEffect}\nDialog: ${scene.dialog}`;
+          onCopy(content, scene.id);
+        }}
+        className="p-2.5 rounded-xl bg-zinc-800/50 hover:bg-zinc-700 transition-all text-zinc-400 hover:text-white border border-transparent hover:border-zinc-600 shadow-sm active:scale-95"
+        title="Copy full scene data"
       >
-        {isCopied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+        {isCopied ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
       </button>
     </div>
-    <div className="flex-1 overflow-y-auto pr-1 max-h-[160px] custom-scrollbar">
-      <p className="text-sm text-zinc-400 leading-relaxed font-sans group-hover:text-zinc-200 transition-colors">
-        {scene.content}
-      </p>
+
+    {/* Content Sections */}
+    <div className="flex-1 space-y-4 pr-1 custom-scrollbar">
+      <div className="space-y-1.5">
+        <label className="text-[9px] font-black uppercase tracking-widest text-yellow-500/60 flex items-center gap-1.5">
+          <MonitorPlay className="w-2.5 h-2.5" /> Visual Prompt
+        </label>
+        <p className="text-xs text-zinc-300 leading-relaxed bg-zinc-950/40 p-3 rounded-lg border border-zinc-800/50 italic">
+          "{scene.visualPrompt}"
+        </p>
+      </div>
+
+      <div className="grid grid-cols-2 gap-3">
+        <div className="space-y-1.5">
+          <label className="text-[9px] font-black uppercase tracking-widest text-zinc-500 flex items-center gap-1.5">
+            <RefreshCcw className="w-2.5 h-2.5" /> Camera
+          </label>
+          <p className="text-[10px] text-zinc-400 font-medium bg-zinc-950/20 p-2 rounded-lg border border-zinc-900/50">
+            {scene.cameraEffect}
+          </p>
+        </div>
+        <div className="space-y-1.5">
+          <label className="text-[9px] font-black uppercase tracking-widest text-zinc-500 flex items-center gap-1.5">
+            <Palette className="w-2.5 h-2.5" /> Audio
+          </label>
+          <p className="text-[10px] text-zinc-400 font-medium bg-zinc-950/20 p-2 rounded-lg border border-zinc-900/50">
+            {scene.soundEffect}
+          </p>
+        </div>
+      </div>
+
+      <div className="space-y-1.5 pt-1">
+        <label className="text-[9px] font-black uppercase tracking-widest text-emerald-500/60 flex items-center gap-1.5">
+          <User className="w-2.5 h-2.5" /> Dialogue
+        </label>
+        <p className="text-[11px] font-bold text-zinc-200 border-l-2 border-emerald-500/30 pl-3 py-0.5">
+          {scene.dialog || "No dialogue in scene"}
+        </p>
+      </div>
     </div>
   </motion.div>
 );
 
-function Selector({ label, icon, value, options, onChange }: { 
+function InputField({ label, icon, value, onChange, placeholder }: { 
   label: string, 
   icon: React.ReactNode, 
   value: string, 
-  options: string[], 
-  onChange: (v: string) => void 
+  onChange: (v: string) => void,
+  placeholder?: string
 }) {
   return (
     <div className="space-y-2">
@@ -359,17 +425,14 @@ function Selector({ label, icon, value, options, onChange }: {
         <span className="text-yellow-500/60">{icon}</span>
         {label}
       </label>
-      <div className="relative">
-        <select
+      <div className="relative group">
+        <textarea
           value={value}
           onChange={(e) => onChange(e.target.value)}
-          className="w-full appearance-none bg-zinc-950/50 border border-zinc-800/50 rounded-xl pl-4 pr-10 py-3 text-xs md:text-sm text-zinc-300 outline-none focus:border-yellow-500/40 focus:ring-1 focus:ring-yellow-500/20 transition-all cursor-pointer hover:bg-zinc-950"
-        >
-          {options.map(opt => (
-            <option key={opt} value={opt} className="bg-zinc-900 text-zinc-200">{opt}</option>
-          ))}
-        </select>
-        <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-600 pointer-events-none" />
+          placeholder={placeholder || `Enter ${label.toLowerCase()}...`}
+          rows={2}
+          className="w-full bg-zinc-950/50 border border-zinc-800/50 rounded-xl px-4 py-3 text-xs md:text-sm text-zinc-300 outline-none focus:border-yellow-500/40 focus:ring-1 focus:ring-yellow-500/20 transition-all hover:bg-zinc-950 resize-none custom-scrollbar"
+        />
       </div>
     </div>
   );
@@ -382,6 +445,7 @@ const LOCAL_STORAGE_KEY = 'kang_arsitek_projects';
 export default function App() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [isLoadingHistory, setIsLoadingHistory] = useState(true);
+  const [fetchedOptions, setFetchedOptions] = useState<ConfigOptions | null>(null);
   
   // Helper to sanitize incoming project data (handle duplicates and invalid dates)
   const sanitizeProjects = (data: any[]): Project[] => {
@@ -395,11 +459,41 @@ export default function App() {
       if (isNaN(timestamp) || timestamp <= 0) {
         timestamp = Date.now();
       }
+
+      // Reconstruct structured prompts from sheet strings if needed
+      const rawPrompts = Array.isArray(p.prompts) ? p.prompts : [];
+      const sanitizedPrompts = rawPrompts.map((rp: any) => {
+        if (rp.visualPrompt) return rp as ScenePrompt;
+        
+        const content = rp.content || '';
+        if (content.includes('Visual: ')) {
+          const parts = content.split(' | ');
+          return {
+            id: rp.id,
+            title: rp.title,
+            visualPrompt: parts[0]?.replace('Visual: ', '') || '',
+            cameraEffect: parts[1]?.replace('Camera: ', '') || '',
+            soundEffect: parts[2]?.replace('Audio: ', '') || '',
+            dialog: parts[3]?.replace('Dialog: ', '') || '',
+            content
+          };
+        }
+
+        return {
+          id: rp.id,
+          title: rp.title,
+          visualPrompt: content,
+          cameraEffect: 'N/A',
+          soundEffect: 'N/A',
+          dialog: '',
+          content
+        };
+      });
       
       projectMap.set(p.id, {
         ...p,
         createdAt: timestamp,
-        prompts: Array.isArray(p.prompts) ? p.prompts : []
+        prompts: sanitizedPrompts
       });
     });
     
@@ -408,75 +502,85 @@ export default function App() {
 
   const [currentProjectId, setCurrentProjectId] = useState<string | null>(null);
   const [state, setState] = useState<PromptState>({
-    character: CHARACTERS[0],
-    location: LOCATIONS[0],
-    building: BUILDINGS[0],
-    weather: WEATHER[0],
-    theme: THEMES[0],
+    character: '',
+    location: '',
+    building: '',
+    weather: '',
+    theme: '',
     status: 'Draft',
   });
 
   const [generatedPrompts, setGeneratedPrompts] = useState<ScenePrompt[]>([]);
   const [copiedId, setCopiedId] = useState<number | null>(null);
   const [isCopyingAll, setIsCopyingAll] = useState(false);
+  const [isGenerating, setIsGenerating] = useState(false);
   const [syncStatus, setSyncStatus] = useState<SyncStatus>('idle');
 
-  // Load from Google Sheets or localStorage
-  useEffect(() => {
-    const initializeData = async () => {
-      setIsLoadingHistory(true);
+  // Reusable initialization logic
+  const refreshData = async (silent = false) => {
+    if (!silent) setIsLoadingHistory(true);
+    
+    const configured = isSheetSyncConfigured();
+    if (!configured) {
+      setSyncStatus('unconfigured');
+      loadLocalBackup();
+      if (!silent) setIsLoadingHistory(false);
+      return;
+    }
+    
+    try {
+      setSyncStatus('syncing');
+      const [sheetsProjects, optionsData] = await Promise.all([
+        fetchProjectsFromSheets(),
+        fetchOptionsFromSheets()
+      ]);
       
-      const configured = isSheetSyncConfigured();
-      if (!configured) {
-        setSyncStatus('unconfigured');
-        const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
-        if (saved) {
-          try {
-            setProjects(JSON.parse(saved));
-          } catch (e) {
-            console.error('Failed to parse projects from localStorage', e);
-          }
-        }
-        setIsLoadingHistory(false);
-        return;
+      if (optionsData) {
+        setFetchedOptions(optionsData);
+        // If we haven't selected a project, set defaults from fetched options if fields are currently empty
+        setState(prev => ({
+          ...prev,
+          character: prev.character || optionsData.characters?.[0] || '',
+          location: prev.location || optionsData.locations?.[0] || '',
+          building: prev.building || optionsData.buildings?.[0] || '',
+          weather: prev.weather || optionsData.weather?.[0] || '',
+          theme: prev.theme || optionsData.themes?.[0] || '',
+        }));
       }
-      
-      // Try Google Sheets
-      try {
-        const sheetsProjects = await fetchProjectsFromSheets();
-        
-        if (sheetsProjects) {
-          setProjects(sanitizeProjects(sheetsProjects));
-          setSyncStatus('idle');
-        } else {
-          // fetchProjectsFromSheets returns null on failure
-          setSyncStatus('failed');
-          loadLocalBackup();
-        }
-      } catch (err) {
-        console.error('Initialization fetch error:', err);
+
+      if (sheetsProjects) {
+        setProjects(sanitizeProjects(sheetsProjects));
+        setSyncStatus('idle');
+      } else {
         setSyncStatus('failed');
         loadLocalBackup();
       }
-      
-      setIsLoadingHistory(false);
-    };
+    } catch (err) {
+      console.error('Refresh failed:', err);
+      setSyncStatus('failed');
+      loadLocalBackup();
+    }
+    
+    if (!silent) setIsLoadingHistory(false);
+  };
 
-    const loadLocalBackup = () => {
-      const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
-      if (saved) {
-        try {
-          const parsed = JSON.parse(saved);
-          if (Array.isArray(parsed)) {
-            setProjects(sanitizeProjects(parsed));
-          }
-        } catch (e) {
-          console.error('Failed to parse projects from localStorage', e);
+  const loadLocalBackup = () => {
+    const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) {
+          setProjects(sanitizeProjects(parsed));
         }
+      } catch (e) {
+        console.error('Failed to parse projects from localStorage', e);
       }
-    };
+    }
+  };
 
-    initializeData();
+  // Load from Google Sheets or localStorage on startup
+  useEffect(() => {
+    refreshData();
   }, []);
 
   // Sync to localStorage as secondary backup
@@ -487,29 +591,42 @@ export default function App() {
   }, [projects, isLoadingHistory]);
 
   const handleGenerate = async () => {
-    const scenes = generateScenes(state);
-    setGeneratedPrompts(scenes);
-    
-    // Auto save new project
-    const newProject: Project = {
-      ...state,
-      id: crypto.randomUUID?.() || Date.now().toString(),
-      title: `${state.building.split(' ').slice(0, 3).join(' ')} at ${state.location.split(' ').slice(0, 2).join(' ')}`,
-      prompts: scenes,
-      status: 'Generated',
-      createdAt: Date.now()
-    };
+    if (!state.character || !state.building || !state.location) {
+      alert("Please fill in main character, location, and building details.");
+      return;
+    }
 
-    setProjects(prev => [...prev, newProject]);
-    setCurrentProjectId(newProject.id);
-    setState(prev => ({ ...prev, status: 'Generated' }));
+    try {
+      setIsGenerating(true);
+      const scenes = await generateCinematicPrompts(state);
+      setGeneratedPrompts(scenes);
+      
+      // Auto save new project
+      const newProject: Project = {
+        ...state,
+        id: crypto.randomUUID?.() || Date.now().toString(),
+        title: `${state.building.split(' ').slice(0, 3).join(' ')} at ${state.location.split(' ').slice(0, 2).join(' ')}`,
+        prompts: scenes,
+        status: 'Generated',
+        createdAt: Date.now()
+      };
 
-    // Sync to Google Sheets
-    setSyncStatus('syncing');
-    const success = await syncProjectToSheets(newProject);
-    setSyncStatus(success ? 'synced' : 'failed');
-    if (success) {
-      setTimeout(() => setSyncStatus('idle'), 3000);
+      setProjects(prev => [...prev, newProject]);
+      setCurrentProjectId(newProject.id);
+      setState(prev => ({ ...prev, status: 'Generated' }));
+
+      // Sync to Google Sheets
+      setSyncStatus('syncing');
+      const success = await syncProjectToSheets(newProject);
+      setSyncStatus(success ? 'synced' : 'failed');
+      if (success) {
+        setTimeout(() => setSyncStatus('idle'), 3000);
+      }
+    } catch (error) {
+      console.error("Critical Generation Failure:", error);
+      alert("Failed to connect to Creative Brain. Please check your API key or network.");
+    } finally {
+      setIsGenerating(false);
     }
   };
 
@@ -568,7 +685,10 @@ export default function App() {
   };
 
   const handleCopyAll = () => {
-    const allContent = generatedPrompts.map(p => `[${p.title}]\n${p.content}`).join('\n\n');
+    const allContent = generatedPrompts.map(p => 
+      `### ${p.title} ###\nVisual: ${p.visualPrompt}\nCamera: ${p.cameraEffect}\nSound: ${p.soundEffect}\nDialog: ${p.dialog}`
+    ).join('\n\n---\n\n');
+    
     navigator.clipboard.writeText(allContent);
     setIsCopyingAll(true);
     setTimeout(() => setIsCopyingAll(false), 2000);
@@ -584,6 +704,7 @@ export default function App() {
           currentProjectId={currentProjectId}
           onProjectSelect={handleSelectProject}
           onDeleteProject={handleDeleteProject}
+          onRefresh={() => refreshData()}
           isLoading={isLoadingHistory}
           syncError={syncStatus === 'failed'}
         />
@@ -626,7 +747,12 @@ export default function App() {
             
             {/* Left Configuration Panel */}
             <section className="lg:col-span-5 animate-in fade-in slide-in-from-left-4 duration-700 delay-100">
-              <PromptForm state={state} setState={setState} onGenerate={handleGenerate} />
+              <PromptForm 
+                state={state} 
+                setState={setState} 
+                onGenerate={handleGenerate} 
+                isGenerating={isGenerating}
+              />
             </section>
 
             {/* Right Results Panel */}
@@ -650,7 +776,7 @@ export default function App() {
                 )}
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-5 min-h-[400px]">
+              <div className="grid grid-cols-1 gap-5 min-h-[400px]">
                 <AnimatePresence mode="popLayout" initial={false}>
                   {generatedPrompts.length === 0 ? (
                     <motion.div 

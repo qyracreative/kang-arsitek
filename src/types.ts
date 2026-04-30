@@ -4,7 +4,11 @@ export type SyncStatus = 'idle' | 'syncing' | 'synced' | 'failed' | 'unconfigure
 export interface ScenePrompt {
   id: number;
   title: string;
-  content: string;
+  visualPrompt: string;
+  cameraEffect: string;
+  soundEffect: string;
+  dialog: string;
+  content?: string; // For legacy support/sheet sync
 }
 
 export interface PromptState {

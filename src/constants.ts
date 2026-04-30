@@ -1,31 +1,10 @@
 import { ProductionStatus } from './types';
 
-export const CHARACTERS = [
-  "young female architect with tied black hair, stylish architect blazer, yellow construction helmet",
-  "mature male architect with architect vest, white construction helmet",
-];
-
-export const LOCATIONS = [
-  "dense tropical forest clearing",
-  "beachside sandy construction site",
-  "rocky mountain plateau",
-];
-
-export const BUILDINGS = [
-  "luxurious modern tropical villa with glass walls",
-  "elegant minimalist house",
-  "futuristic glass skyscraper",
-];
-
-export const WEATHER = [
-  "bright golden sunlight with vibrant atmosphere",
-  "dramatic rainy daylight with wet surfaces",
-];
-
-export const THEMES = [
-  "luxury cinematic style",
-  "futuristic cinematic style",
-];
+export const CHARACTERS = [];
+export const LOCATIONS = [];
+export const BUILDINGS = [];
+export const WEATHER = [];
+export const THEMES = [];
 
 export const GOOGLE_SCRIPT_URL = ""; // SET YOUR GOOGLE APPS SCRIPT WEBAPP URL HERE
 

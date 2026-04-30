@@ -100,6 +100,13 @@ function updateProjectStatus(sheet, projectId, status) {
 
 function doGet(e) {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var type = e.parameter.type;
+
+  if (type === "options") {
+    return ContentService.createTextOutput(JSON.stringify(getOptions(ss)))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+
   var sheet = ss.getSheetByName("Projects");
   
   if (!sheet) {
@@ -161,4 +168,45 @@ function doGet(e) {
   var json = JSON.stringify(results);
   return ContentService.createTextOutput(json)
     .setMimeType(ContentService.MimeType.JSON);
+}
+
+function getOptions(ss) {
+  var sheet = ss.getSheetByName("Options");
+  if (!sheet) {
+    sheet = ss.insertSheet("Options");
+    sheet.appendRow(["Character", "Location", "Building", "Weather", "Theme"]);
+    
+    // Initial data from constants
+    var initialData = [
+      ["young female architect with tied black hair, stylish architect blazer, yellow construction helmet", "dense tropical forest clearing", "luxurious modern tropical villa with glass walls", "bright golden sunlight with vibrant atmosphere", "luxury cinematic style"],
+      ["mature male architect with architect vest, white construction helmet", "beachside sandy construction site", "elegant minimalist house", "dramatic rainy daylight with wet surfaces", "futuristic cinematic style"],
+      ["", "rocky mountain plateau", "futuristic glass skyscraper", "", ""]
+    ];
+    
+    for (var i = 0; i < initialData.length; i++) {
+      sheet.appendRow(initialData[i]);
+    }
+    
+    sheet.getRange(1, 1, 1, 5).setFontWeight("bold").setBackground("#f3f3f3");
+  }
+
+  var values = sheet.getDataRange().getValues();
+  var options = {
+    characters: [],
+    locations: [],
+    buildings: [],
+    weather: [],
+    themes: []
+  };
+
+  for (var i = 1; i < values.length; i++) {
+    var row = values[i];
+    if (row[0]) options.characters.push(row[0]);
+    if (row[1]) options.locations.push(row[1]);
+    if (row[2]) options.buildings.push(row[2]);
+    if (row[3]) options.weather.push(row[3]);
+    if (row[4]) options.themes.push(row[4]);
+  }
+
+  return options;
 }

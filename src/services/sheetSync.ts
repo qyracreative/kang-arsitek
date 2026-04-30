@@ -1,4 +1,4 @@
-import { Project, ProductionStatus } from '../types';
+import { Project, ProductionStatus, ScenePrompt } from '../types';
 
 const SCRIPT_URL = import.meta.env.VITE_GOOGLE_SCRIPT_URL || '';
 
@@ -21,6 +21,15 @@ export const syncProjectToSheets = async (project: Project): Promise<boolean> =>
     return false;
   }
 
+  const formatScene = (scene?: ScenePrompt) => {
+    if (!scene) return '';
+    // If it has specialized fields, join them. Otherwise use content.
+    if (scene.visualPrompt) {
+      return `Visual: ${scene.visualPrompt} | Camera: ${scene.cameraEffect} | Audio: ${scene.soundEffect} | Dialog: ${scene.dialog}`;
+    }
+    return scene.content || '';
+  };
+
   const payload = {
     action: 'saveProject',
     projectId: project.id,
@@ -31,14 +40,14 @@ export const syncProjectToSheets = async (project: Project): Promise<boolean> =>
     weather: project.weather,
     theme: project.theme,
     status: project.status,
-    scene1: project.prompts[0]?.content || '',
-    scene2: project.prompts[1]?.content || '',
-    scene3: project.prompts[2]?.content || '',
-    scene4: project.prompts[3]?.content || '',
-    scene5: project.prompts[4]?.content || '',
-    scene6: project.prompts[5]?.content || '',
-    scene7: project.prompts[6]?.content || '',
-    scene8: project.prompts[7]?.content || '',
+    scene1: formatScene(project.prompts[0]),
+    scene2: formatScene(project.prompts[1]),
+    scene3: formatScene(project.prompts[2]),
+    scene4: formatScene(project.prompts[3]),
+    scene5: formatScene(project.prompts[4]),
+    scene6: formatScene(project.prompts[5]),
+    scene7: formatScene(project.prompts[6]),
+    scene8: formatScene(project.prompts[7]),
     createdAt: new Date(project.createdAt).toISOString(),
   };
 
@@ -121,5 +130,31 @@ export const updateProjectStatusInSheets = async (projectId: string, status: Pro
   } catch (error) {
     console.error('Sheet Sync Error (Update):', error);
     return false;
+  }
+};
+
+export interface ConfigOptions {
+  characters: string[];
+  locations: string[];
+  buildings: string[];
+  weather: string[];
+  themes: string[];
+}
+
+export const fetchOptionsFromSheets = async (): Promise<ConfigOptions | null> => {
+  if (!isSheetSyncConfigured()) {
+    return null;
+  }
+
+  try {
+    const response = await fetch(`${SCRIPT_URL}?type=options`);
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+    const data = await response.json();
+    return data as ConfigOptions;
+  } catch (error) {
+    console.error('Fetch options failed:', error);
+    return null;
   }
 };
