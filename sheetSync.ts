@@ -50,7 +50,7 @@ Scene 4: Glitch transition, blueprint lowers to reveal 25% progress, then raises
 Scene 5: Glitch transition, blueprint lowers to reveal 50% progress, then raises.
 Scene 6: Glitch transition, blueprint lowers to reveal 75% progress, then raises.
 Scene 7: Glitch transition, blueprint lowers to reveal 100% completion, camera moves closer.
-Scene 8: Multiple angles of completed building, glitch transition to architect medium close-up, Dialog: "Ok, pembangunan [building_type] telah selesai."
+Scene 8: Multiple angles of completed building, glitch transition to architect medium close-up, Dialog: "Pembangunan selesai. Siap untuk proyek berikutnya"
 
 IMPORTANT: Return only a raw JSON array of 8 objects, each with:
 "id" (number), "title" (string, e.g. "Scene 1: The Vision"), "visualPrompt" (string), "cameraEffect" (string), "soundEffect" (string), "dialog" (string).
@@ -85,8 +85,7 @@ export const generateCinematicPrompts = async (state: PromptState): Promise<Scen
 
     // Post-processing for Scene 8 (User request: Scene 8 must have specific dialogue)
     if (scenes.length >= 8) {
-      const buildingName = state.building?.toLowerCase() || 'bangunan';
-      scenes[7].dialog = `Ok, pembangunan ${buildingName} telah selesai.`;
+      scenes[7].dialog = "Pembangunan selesai. Siap untuk proyek berikutnya";
     }
     
     return scenes;

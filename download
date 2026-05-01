@@ -180,7 +180,9 @@ export const fetchOptionsFromSheets = async (): Promise<ConfigOptions | null> =>
       method: 'GET',
       mode: 'cors',
       redirect: 'follow'
+      // DO NOT add any headers (not even Accept) as it can trigger CORS preflight
     });
+
     if (!response.ok) {
       if (response.status === 404) {
         throw new Error('Options endpoint not found (404). Ensure your Apps Script has a doGet(e) function handling type="options".');
@@ -190,7 +192,16 @@ export const fetchOptionsFromSheets = async (): Promise<ConfigOptions | null> =>
     const data = await response.json();
     return data as ConfigOptions;
   } catch (error) {
-    if (!(error instanceof Error && error.message.includes('404'))) {
+    if (error instanceof TypeError && error.message === 'Failed to fetch') {
+      console.error('CRITICAL: Google Sheets CORS Block detected.');
+      console.warn('This usually happens because the Google Apps Script is not publicly accessible.');
+      console.warn('FIX STEPS:');
+      console.warn('1. Open your Apps Script editor.');
+      console.warn('2. Click "Deploy" > "Manage deployments".');
+      console.warn('3. Ensure "Who has access" is set to "Anyone" (NOT "Anyone with Google Account").');
+      console.warn('4. Ensure "Execute as" is set to "Me".');
+      console.warn('5. If you changed settings, you MUST create a "New Deployment" to get a new active URL.');
+    } else if (!(error instanceof Error && error.message.includes('404'))) {
       console.error('Fetch options failed:', error);
     }
     return null;
