@@ -1,33 +1,10 @@
-export type ProductionStatus = 'Draft' | 'Ready' | 'Generated' | 'Edited' | 'Uploaded';
-export type SyncStatus = 'idle' | 'syncing' | 'synced' | 'failed' | 'unconfigured';
+import {StrictMode} from 'react';
+import {createRoot} from 'react-dom/client';
+import App from './App.tsx';
+import './index.css';
 
-export interface ScenePrompt {
-  id: number;
-  title: string;
-  visualPrompt: string;
-  cameraEffect: string;
-  soundEffect: string;
-  dialog: string;
-  content?: string; // For legacy support/sheet sync
-}
-
-export interface PromptState {
-  character: string;
-  characterPrompt: string;
-  location: string;
-  locationPrompt: string;
-  building: string;
-  buildingPrompt: string;
-  weather: string;
-  weatherPrompt: string;
-  theme: string;
-  themePrompt: string;
-  status: ProductionStatus;
-}
-
-export interface Project extends PromptState {
-  id: string;
-  title: string;
-  prompts: ScenePrompt[];
-  createdAt: number;
-}
+createRoot(document.getElementById('root')!).render(
+  <StrictMode>
+    <App />
+  </StrictMode>,
+);
