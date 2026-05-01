@@ -1,89 +1,198 @@
-import { GoogleGenAI } from "@google/genai";
-import { PromptState, ScenePrompt } from "../types";
+import { Project, ProductionStatus, ScenePrompt } from '../types';
 
-let ai: GoogleGenAI | null = null;
+const SCRIPT_URL = (import.meta.env.VITE_GOOGLE_SCRIPT_URL || '').trim();
 
-const getAI = () => {
-  if (!ai) {
-    const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey) {
-      throw new Error("GEMINI_API_KEY is not set in the environment.");
-    }
-    ai = new GoogleGenAI({ apiKey });
+export const isSheetSyncConfigured = () => {
+  if (!SCRIPT_URL || SCRIPT_URL === '' || SCRIPT_URL.includes('YOUR_GOOGLE_APPS_SCRIPT')) {
+    return false;
   }
-  return ai;
-};
-
-const SYSTEM_PROMPT = `You are an expert cinematic prompt generator for Google Veo.
-
-Your task is to create a complete 8-scene cinematic short video prompt for an AI-generated architectural transformation video.
-
-The video concept is about an architect building a structure from an empty land into a finished masterpiece, designed for TikTok, Reels, and YouTube Shorts, with a total duration of around 1 minute.
-
-You will receive these inputs:
-1. Character Prompt = description of the architect character
-2. Location Prompt = description of the empty land/environment
-3. Building Prompt = description of the final building
-4. Weather Prompt = lighting/weather atmosphere
-5. Theme Prompt = cinematic visual style
-
-Your output must create 8 cinematic scenes, each scene containing:
-1. Visual Prompt
-2. Camera Effect
-3. Sound Effect
-4. Dialog
-
-All scenes must maintain:
-- consistent character appearance
-- consistent environment continuity
-- consistent architectural style
-- cinematic realism
-- smooth progression from empty land to completed building
-- realistic camera movement
-- immersive sound design
-
-Use the following 8-scene storyline:
-Scene 1: Empty land, architect seen from behind, camera orbits.
-Scene 2: Glitch transition, medium close-up, architect thinking (left arm folded, right elbow on left hand, right hand on chin), Dialog: "Ok, kerjakan."
-Scene 3: Glitch transition, architect POV, raises blueprint with header "Kang Arsitek" covering land.
-Scene 4: Glitch transition, blueprint lowers to reveal 25% progress, then raises.
-Scene 5: Glitch transition, blueprint lowers to reveal 50% progress, then raises.
-Scene 6: Glitch transition, blueprint lowers to reveal 75% progress, then raises.
-Scene 7: Glitch transition, blueprint lowers to reveal 100% completion, camera moves closer.
-Scene 8: Multiple angles of completed building, glitch transition to architect medium close-up, Dialog: "Ok, selesai."
-
-IMPORTANT: Return only a raw JSON array of 8 objects, each with:
-"id" (number), "title" (string, e.g. "Scene 1: The Vision"), "visualPrompt" (string), "cameraEffect" (string), "soundEffect" (string), "dialog" (string).
-Do not include markdown code blocks or any other text.`;
-
-export const generateCinematicPrompts = async (state: PromptState): Promise<ScenePrompt[]> => {
-  const model = "gemini-3-flash-preview";
-  const prompt = `
-    Character: ${state.character}
-    Location: ${state.location}
-    Building: ${state.building}
-    Weather: ${state.weather}
-    Theme: ${state.theme}
-
-    Use the system instructions to generate the 8 scenes based on these inputs.
-  `;
+  
+  if (SCRIPT_URL.includes('/edit') || SCRIPT_URL.includes('spreadsheets/d/')) {
+    console.warn('VITE_GOOGLE_SCRIPT_URL seems to be a Google Sheet or Editor URL, not a Web App URL. Please deploy your script as a Web App (Deploy > New Deployment).');
+  }
 
   try {
-    const response = await getAI().models.generateContent({
-      model,
-      contents: prompt,
-      config: {
-        systemInstruction: SYSTEM_PROMPT,
-        responseMimeType: "application/json"
-      }
+    const url = new URL(SCRIPT_URL);
+    if (!url.pathname.endsWith('/exec')) {
+      console.warn('VITE_GOOGLE_SCRIPT_URL typically ends with /exec for Google Apps Script Web Apps. Current URL might be incorrect.');
+    }
+    return url.protocol === 'https:';
+  } catch (e) {
+    return false;
+  }
+};
+
+const buildUrl = (baseUrl: string, params: Record<string, string> = {}) => {
+  try {
+    const url = new URL(baseUrl);
+    Object.entries(params).forEach(([key, value]) => {
+      url.searchParams.set(key, value);
+    });
+    return url.toString();
+  } catch (e) {
+    // Fallback for simple string concatenation if URL is invalid (unlikely to work anyway)
+    const queryString = Object.entries(params)
+      .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(value)}`)
+      .join('&');
+    return queryString ? `${baseUrl}${baseUrl.includes('?') ? '&' : '?'}${queryString}` : baseUrl;
+  }
+};
+
+export const syncProjectToSheets = async (project: Project): Promise<boolean> => {
+  if (!isSheetSyncConfigured()) {
+    console.warn('Google Script URL is not configured. Sync to Google Sheets is disabled.');
+    return false;
+  }
+
+  const formatScene = (scene?: ScenePrompt) => {
+    if (!scene) return '';
+    // If it has specialized fields, join them. Otherwise use content.
+    if (scene.visualPrompt) {
+      return `Visual: ${scene.visualPrompt} | Camera: ${scene.cameraEffect} | Audio: ${scene.soundEffect} | Dialog: ${scene.dialog}`;
+    }
+    return scene.content || '';
+  };
+
+  const payload = {
+    action: 'saveProject',
+    projectId: project.id,
+    title: project.title,
+    character: project.character,
+    location: project.location,
+    building: project.building,
+    weather: project.weather,
+    theme: project.theme,
+    status: project.status,
+    scene1: formatScene(project.prompts[0]),
+    scene2: formatScene(project.prompts[1]),
+    scene3: formatScene(project.prompts[2]),
+    scene4: formatScene(project.prompts[3]),
+    scene5: formatScene(project.prompts[4]),
+    scene6: formatScene(project.prompts[5]),
+    scene7: formatScene(project.prompts[6]),
+    scene8: formatScene(project.prompts[7]),
+    createdAt: new Date(project.createdAt).toISOString(),
+  };
+
+  try {
+    // Mode 'no-cors' allows sending data to Apps Script without CORs issues for POST,
+    // although we cannot read the response body.
+    await fetch(SCRIPT_URL, {
+      method: 'POST',
+      mode: 'no-cors',
+      redirect: 'follow',
+      headers: {
+        'Content-Type': 'text/plain', // Prevents preflight OPTIONS request
+      },
+      body: JSON.stringify(payload),
+    });
+    return true; 
+  } catch (error) {
+    console.error('Sheet Sync Error (POST):', error);
+    return false;
+  }
+};
+
+export const fetchProjectsFromSheets = async (): Promise<Project[] | null> => {
+  if (!isSheetSyncConfigured()) {
+    return null;
+  }
+
+  try {
+    // A simple GET request (no custom headers) is less likely to trigger CORS preflight.
+    // Google Apps Script will handle this via its redirect mechanism.
+    const response = await fetch(buildUrl(SCRIPT_URL), {
+      method: 'GET',
+      mode: 'cors',
+      redirect: 'follow',
     });
 
-    const text = response.text;
-    if (!text) throw new Error("Empty response from AI");
+    if (!response.ok) {
+      if (response.status === 404) {
+        throw new Error('Script URL not found (404). Check your VITE_GOOGLE_SCRIPT_URL.');
+      }
+      throw new Error(`Cloud Error: ${response.status} ${response.statusText}`);
+    }
+
+    const data = await response.json();
     
-    return JSON.parse(text) as ScenePrompt[];
+    if (!Array.isArray(data)) {
+      throw new Error('Invalid data format: Expected an array of projects.');
+    }
+
+    return data as Project[];
   } catch (error) {
-    console.error("Error generating cinematic prompts:", error);
-    throw error;
+    // "Failed to fetch" is almost always a CORS or Network error with Apps Script
+    if (error instanceof TypeError && error.message === 'Failed to fetch') {
+      console.error('Google Sheets Connection Blocked (CORS):');
+      console.warn('1. Your VITE_GOOGLE_SCRIPT_URL might be wrong or missing.');
+      console.warn('2. Your Apps Script MUST be deployed as "Web App".');
+      console.warn('3. "Who has access" MUST be set to "Anyone" (not Anyone with Google Account).');
+      console.warn('4. Ensure your browser is not blocking the connection (e.g., ad-blockers).');
+    } else {
+      console.error('Sync Error (GET):', error);
+    }
+    return null;
+  }
+};
+
+export const updateProjectStatusInSheets = async (projectId: string, status: ProductionStatus): Promise<boolean> => {
+  if (!isSheetSyncConfigured()) return false;
+
+  const payload = {
+    action: 'updateStatus',
+    projectId,
+    status,
+  };
+
+  try {
+    await fetch(SCRIPT_URL, {
+      method: 'POST',
+      mode: 'no-cors',
+      redirect: 'follow',
+      headers: {
+        'Content-Type': 'text/plain',
+      },
+      body: JSON.stringify(payload),
+    });
+    return true;
+  } catch (error) {
+    console.error('Sheet Sync Error (Update):', error);
+    return false;
+  }
+};
+
+export interface ConfigOptions {
+  characters: string[];
+  locations: string[];
+  buildings: string[];
+  weather: string[];
+  themes: string[];
+}
+
+export const fetchOptionsFromSheets = async (): Promise<ConfigOptions | null> => {
+  if (!isSheetSyncConfigured()) {
+    return null;
+  }
+
+  try {
+    const response = await fetch(buildUrl(SCRIPT_URL, { type: 'options' }), {
+      method: 'GET',
+      mode: 'cors',
+      redirect: 'follow'
+    });
+    if (!response.ok) {
+      if (response.status === 404) {
+        throw new Error('Options endpoint not found (404). Ensure your Apps Script has a doGet(e) function handling type="options".');
+      }
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+    const data = await response.json();
+    return data as ConfigOptions;
+  } catch (error) {
+    if (!(error instanceof Error && error.message.includes('404'))) {
+      console.error('Fetch options failed:', error);
+    }
+    return null;
   }
 };
