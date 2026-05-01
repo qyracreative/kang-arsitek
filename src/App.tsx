@@ -854,7 +854,7 @@ export default function App() {
 
     try {
       setIsGenerating(true);
-      const scenes = await generateCinematicPrompts(state);
+      const { scenes, socialMedia } = await generateCinematicPrompts(state);
       setGeneratedPrompts(scenes);
       
       // Auto save new project
@@ -864,37 +864,32 @@ export default function App() {
       const timestamp = Date.now().toString().slice(-6);
       const newProjectId = `${today}/${characterName}-${timestamp}`;
 
-      const reelCaption = `${characterName} Build a ${buildingName} at ${state.location}
-
-🚀 Ingin punya hunian impian seperti ini? Lihat bagaimana ${characterName} mewujudkan ${buildingName} di ${state.location} dengan gaya ${state.theme}! ✨
-
-Desain arsitektur modern yang memanjakan mata, cocok untuk inspirasi rumah masa depanmu. 🔥
-
-#arsitek #designrumah #arsitektur #architecture #vilamewah #rumahimpian #homestyling #reelsviral #${buildingName.replace(/\s+/g, '')} #${state.location.replace(/\s+/g, '')}`;
-
       const buildingSlug = buildingName.replace(/\s+/g, '');
       const locationSlug = state.location.replace(/\s+/g, '');
-      
-      const ytShortTitle = `${characterName} Build a ${buildingName} at ${state.location} #shorts`;
-      const ytShortDesc = `Saksikan perjalanan luar biasa ${characterName} saat membangun ${buildingName} dari nol hingga jadi mahakarya di ${state.location}. Desain arsitektur bertema ${state.theme} ini akan membuatmu terpukau!`;
-      const ytShortHash = `arsitek, desainrumah, construction, ${buildingSlug.toLowerCase()}, ${locationSlug.toLowerCase()}, arsitektur`;
 
-      const tiktokCaption = `${characterName} Build a ${buildingName} at ${state.location}
+      // Fallback captions if AI fails to provide them or they are empty
+      const fallbackReelCaption = `${characterName} Build a ${buildingName} at ${state.location}
+🚀 Ingin punya hunian impian seperti ini? Lihat bagaimana ${characterName} mewujudkan ${buildingName} di ${state.location} dengan gaya ${state.theme}! ✨
+#arsitek #designrumah #arsitektur #architecture #${buildingSlug} #${locationSlug}`;
 
-Cuma di sini kamu bisa lihat proses pembangunan ${buildingName} super mewah oleh ${characterName}! 🔥 Desain arsitektur ${state.theme} paling viral tahun ini.
+      const fallbackYtShortTitle = `${characterName} Build a ${buildingName} at ${state.location} #shorts`;
+      const fallbackYtShortDesc = `Saksikan perjalanan luar biasa ${characterName} saat membangun ${buildingName} dari nol hingga jadi mahakarya di ${state.location}.`;
+      const fallbackYtShortHash = `arsitek, desainrumah, construction, ${buildingSlug.toLowerCase()}, ${locationSlug.toLowerCase()}`;
 
-#arsitek #arsitektur #bangunrumah #desaininterior #rumahidaman #trending #viral #foryou #${buildingSlug} #${locationSlug}`;
+      const fallbackTiktokCaption = `${characterName} Build a ${buildingName} at ${state.location}
+Cuma di sini kamu bisa lihat proses pembangunan ${buildingName} super mewah oleh ${characterName}! 🔥
+#arsitek #arsitektur #bangunrumah #${buildingSlug} #${locationSlug}`;
 
       const newProject: Project = {
         ...state,
         id: newProjectId,
         title: `${characterName} Build a ${buildingName} at ${state.location}`,
         prompts: scenes,
-        reelCaption: reelCaption,
-        ytShortTitle: ytShortTitle,
-        ytShortDesc: ytShortDesc,
-        ytShortHash: ytShortHash,
-        tiktokCaption: tiktokCaption,
+        reelCaption: socialMedia?.reelCaption || fallbackReelCaption,
+        ytShortTitle: socialMedia?.ytShortTitle || fallbackYtShortTitle,
+        ytShortDesc: socialMedia?.ytShortDesc || fallbackYtShortDesc,
+        ytShortHash: socialMedia?.ytShortHash || fallbackYtShortHash,
+        tiktokCaption: socialMedia?.tiktokCaption || fallbackTiktokCaption,
         status: 'Draft', // Set to Draft initially until synced
         createdAt: Date.now()
       };
