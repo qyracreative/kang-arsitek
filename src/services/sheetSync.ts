@@ -84,6 +84,11 @@ export const syncProjectToSheets = async (project: Project): Promise<boolean> =>
     scene6: formatScene(project.prompts[5]),
     scene7: formatScene(project.prompts[6]),
     scene8: formatScene(project.prompts[7]),
+    reelCaption: project.reelCaption || "",
+    ytShortTitle: project.ytShortTitle || "",
+    ytShortDesc: project.ytShortDesc || "",
+    ytShortHash: project.ytShortHash || "",
+    tiktokCaption: project.tiktokCaption || "",
     createdAt: new Date(project.createdAt).toISOString(),
   };
 

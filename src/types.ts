@@ -29,5 +29,10 @@ export interface Project extends PromptState {
   id: string;
   title: string;
   prompts: ScenePrompt[];
+  reelCaption?: string;
+  ytShortTitle?: string;
+  ytShortDesc?: string;
+  ytShortHash?: string;
+  tiktokCaption?: string;
   createdAt: number;
 }

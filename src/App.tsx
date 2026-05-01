@@ -771,11 +771,36 @@ export default function App() {
       const buildingName = state.building.trim().split(/[(\n]/)[0].trim() || 'Building';
       const newProjectId = `${today}/${characterName}`;
 
+      const reelCaption = `[${characterName} membangun ${buildingName}]
+
+🚀 Ingin punya hunian impian seperti ini? Lihat bagaimana ${characterName} mewujudkan ${buildingName} di ${state.location} dengan gaya ${state.theme}! ✨
+
+Desain arsitektur modern yang memanjakan mata, cocok untuk inspirasi rumah masa depanmu. 🔥
+
+#arsitek #designrumah #arsitektur #architecture #vilamewah #rumahimpian #homestyling #reelsviral #${buildingName.replace(/\s+/g, '')} #${state.location.replace(/\s+/g, '')}`;
+
+      const buildingSlug = buildingName.replace(/\s+/g, '');
+      const locationSlug = state.location.replace(/\s+/g, '');
+      
+      const ytShortTitle = `Proses ${characterName} Membangun ${buildingName} #shorts`;
+      const ytShortDesc = `Saksikan perjalanan luar biasa ${characterName} saat membangun ${buildingName} dari nol hingga jadi mahakarya di ${state.location}. Desain arsitektur bertema ${state.theme} ini akan membuatmu terpukau!`;
+      const ytShortHash = `arsitek, desainrumah, construction, ${buildingSlug.toLowerCase()}, ${locationSlug.toLowerCase()}, arsitektur`;
+
+      const tiktokCaption = `[${characterName} membangun ${buildingName}]
+Cuma di sini kamu bisa lihat proses pembangunan ${buildingName} super mewah oleh ${characterName}! 🔥 Desain arsitektur ${state.theme} paling viral tahun ini.
+
+#arsitek #arsitektur #bangunrumah #desaininterior #rumahidaman #trending #viral #foryou #${buildingSlug} #${locationSlug}`;
+
       const newProject: Project = {
         ...state,
         id: newProjectId,
         title: `${characterName} membangun ${buildingName}`,
         prompts: scenes,
+        reelCaption: reelCaption,
+        ytShortTitle: ytShortTitle,
+        ytShortDesc: ytShortDesc,
+        ytShortHash: ytShortHash,
+        tiktokCaption: tiktokCaption,
         status: 'Draft', // Set to Draft initially until synced
         createdAt: Date.now()
       };
