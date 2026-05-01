@@ -522,6 +522,96 @@ function InputField({ label, icon, value, onChange, placeholder, rows = 2 }: {
   );
 }
 
+const SocialMediaKit = ({ project }: { project: Project }) => {
+  const [copiedField, setCopiedField] = useState<string | null>(null);
+
+  const copy = (text: string, field: string) => {
+    navigator.clipboard.writeText(text);
+    setCopiedField(field);
+    setTimeout(() => setCopiedField(null), 2000);
+  };
+
+  return (
+    <div className="bg-zinc-900/60 backdrop-blur-xl border border-zinc-800 rounded-2xl p-6 space-y-6 shadow-2xl overflow-hidden relative">
+      <div className="flex items-center gap-3 mb-2">
+        <div className="w-8 h-8 rounded-lg bg-pink-500/10 flex items-center justify-center border border-pink-500/20">
+          <MonitorPlay className="w-4 h-4 text-pink-500" />
+        </div>
+        <h2 className="text-sm font-black uppercase tracking-widest text-white italic">Viral Social Media Kit</h2>
+      </div>
+
+      <div className="grid grid-cols-1 gap-6">
+        {/* Facebook Reels */}
+        <div className="space-y-3 bg-zinc-950/40 p-4 rounded-xl border border-blue-500/10">
+          <div className="flex justify-between items-center">
+            <label className="text-[10px] font-black uppercase tracking-widest text-blue-400">Facebook Reel Caption</label>
+            <button 
+              onClick={() => copy(project.reelCaption || '', 'reel')}
+              className="text-[9px] font-bold text-zinc-500 hover:text-white uppercase flex items-center gap-1.5 transition-colors"
+            >
+              {copiedField === 'reel' ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+              {copiedField === 'reel' ? 'Copied' : 'Copy'}
+            </button>
+          </div>
+          <p className="text-[11px] text-zinc-400 leading-relaxed whitespace-pre-wrap italic">
+            {project.reelCaption || 'Generating...'}
+          </p>
+        </div>
+
+        {/* YouTube Shorts */}
+        <div className="space-y-4 bg-zinc-950/40 p-4 rounded-xl border border-red-500/10">
+          <div className="flex justify-between items-center mb-1">
+            <label className="text-[10px] font-black uppercase tracking-widest text-red-500">YouTube Shorts Kit</label>
+          </div>
+          
+          <div className="space-y-4">
+            <div className="space-y-1.5">
+              <div className="flex justify-between">
+                <span className="text-[8px] font-black text-zinc-600 uppercase">Title</span>
+                <button onClick={() => copy(project.ytShortTitle || '', 'yt-title')} className="text-[8px] text-zinc-500 hover:text-white"><Copy className="w-2.5 h-2.5" /></button>
+              </div>
+              <p className="text-[11px] font-bold text-zinc-200">{project.ytShortTitle || 'Generating...'}</p>
+            </div>
+            
+            <div className="space-y-1.5">
+              <div className="flex justify-between">
+                <span className="text-[8px] font-black text-zinc-600 uppercase">Description</span>
+                <button onClick={() => copy(project.ytShortDesc || '', 'yt-desc')} className="text-[8px] text-zinc-500 hover:text-white"><Copy className="w-2.5 h-2.5" /></button>
+              </div>
+              <p className="text-[11px] text-zinc-400 leading-relaxed italic">{project.ytShortDesc || 'Generating...'}</p>
+            </div>
+
+            <div className="space-y-1.5">
+              <div className="flex justify-between">
+                <span className="text-[8px] font-black text-zinc-600 uppercase">Hashtags</span>
+                <button onClick={() => copy(project.ytShortHash || '', 'yt-hash')} className="text-[8px] text-zinc-500 hover:text-white"><Copy className="w-2.5 h-2.5" /></button>
+              </div>
+              <p className="text-[10px] text-red-400/80 font-medium">{project.ytShortHash || 'Generating...'}</p>
+            </div>
+          </div>
+        </div>
+
+        {/* TikTok */}
+        <div className="space-y-3 bg-zinc-950/40 p-4 rounded-xl border border-emerald-500/10">
+          <div className="flex justify-between items-center">
+            <label className="text-[10px] font-black uppercase tracking-widest text-emerald-400">TikTok Caption</label>
+            <button 
+              onClick={() => copy(project.tiktokCaption || '', 'tiktok')}
+              className="text-[9px] font-bold text-zinc-500 hover:text-white uppercase flex items-center gap-1.5 transition-colors"
+            >
+              {copiedField === 'tiktok' ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+              {copiedField === 'tiktok' ? 'Copied' : 'Copy'}
+            </button>
+          </div>
+          <p className="text-[11px] text-zinc-400 leading-relaxed whitespace-pre-wrap italic">
+            {project.tiktokCaption || 'Generating...'}
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // --- Main App ---
 
 const LOCAL_STORAGE_KEY = 'kang_arsitek_projects';
@@ -621,6 +711,8 @@ export default function App() {
     themePrompt: '',
     status: 'Draft',
   });
+  
+  const currentProject = projects.find(p => p.id === currentProjectId);
 
   const [generatedPrompts, setGeneratedPrompts] = useState<ScenePrompt[]>([]);
   const [copiedId, setCopiedId] = useState<number | null>(null);
@@ -769,9 +861,10 @@ export default function App() {
       const today = new Date().toISOString().split('T')[0];
       const characterName = state.character.trim().split(/[\n,]/)[0] || 'Unknown';
       const buildingName = state.building.trim().split(/[(\n]/)[0].trim() || 'Building';
-      const newProjectId = `${today}/${characterName}`;
+      const timestamp = Date.now().toString().slice(-6);
+      const newProjectId = `${today}/${characterName}-${timestamp}`;
 
-      const reelCaption = `[${characterName} membangun ${buildingName}]
+      const reelCaption = `${characterName} Build a ${buildingName} at ${state.location}
 
 🚀 Ingin punya hunian impian seperti ini? Lihat bagaimana ${characterName} mewujudkan ${buildingName} di ${state.location} dengan gaya ${state.theme}! ✨
 
@@ -782,11 +875,12 @@ Desain arsitektur modern yang memanjakan mata, cocok untuk inspirasi rumah masa 
       const buildingSlug = buildingName.replace(/\s+/g, '');
       const locationSlug = state.location.replace(/\s+/g, '');
       
-      const ytShortTitle = `Proses ${characterName} Membangun ${buildingName} #shorts`;
+      const ytShortTitle = `${characterName} Build a ${buildingName} at ${state.location} #shorts`;
       const ytShortDesc = `Saksikan perjalanan luar biasa ${characterName} saat membangun ${buildingName} dari nol hingga jadi mahakarya di ${state.location}. Desain arsitektur bertema ${state.theme} ini akan membuatmu terpukau!`;
       const ytShortHash = `arsitek, desainrumah, construction, ${buildingSlug.toLowerCase()}, ${locationSlug.toLowerCase()}, arsitektur`;
 
-      const tiktokCaption = `[${characterName} membangun ${buildingName}]
+      const tiktokCaption = `${characterName} Build a ${buildingName} at ${state.location}
+
 Cuma di sini kamu bisa lihat proses pembangunan ${buildingName} super mewah oleh ${characterName}! 🔥 Desain arsitektur ${state.theme} paling viral tahun ini.
 
 #arsitek #arsitektur #bangunrumah #desaininterior #rumahidaman #trending #viral #foryou #${buildingSlug} #${locationSlug}`;
@@ -794,7 +888,7 @@ Cuma di sini kamu bisa lihat proses pembangunan ${buildingName} super mewah oleh
       const newProject: Project = {
         ...state,
         id: newProjectId,
-        title: `${characterName} membangun ${buildingName}`,
+        title: `${characterName} Build a ${buildingName} at ${state.location}`,
         prompts: scenes,
         reelCaption: reelCaption,
         ytShortTitle: ytShortTitle,
@@ -956,7 +1050,13 @@ Cuma di sini kamu bisa lihat proses pembangunan ${buildingName} super mewah oleh
             </section>
 
             {/* Right Results Panel */}
-            <section className="lg:col-span-7 space-y-6 animate-in fade-in slide-in-from-right-4 duration-700 delay-200">
+            <section className="lg:col-span-7 space-y-8 animate-in fade-in slide-in-from-right-4 duration-700 delay-200">
+              
+              {/* Viral Kit Section */}
+              {currentProject && generatedPrompts.length > 0 && (
+                <SocialMediaKit project={currentProject} />
+              )}
+
               <div className="flex items-center justify-between min-h-[40px]">
                 <div className="flex items-center gap-3">
                   <div className="w-1.5 h-6 bg-yellow-500 rounded-full" />

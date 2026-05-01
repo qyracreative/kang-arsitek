@@ -1,33 +1,13 @@
 import { Project, ProductionStatus, ScenePrompt } from '../types';
 
-const SCRIPT_URL = (import.meta.env.VITE_GOOGLE_SCRIPT_URL || '').trim();
+// Use our internal proxy endpoint to avoid CORS issues with Google Apps Script
+const SCRIPT_URL = '/api/sheets';
 
+// We now check if the real URL is configured in the environment (on the server side)
+// But for the client, we just need to know if the proxy is "available"
+// Since we control the server, we assume it is.
 export const isSheetSyncConfigured = () => {
-  if (!SCRIPT_URL || SCRIPT_URL === '' || SCRIPT_URL.includes('YOUR_GOOGLE_APPS_SCRIPT')) {
-    return false;
-  }
-  
-  if (SCRIPT_URL.includes('/edit') || SCRIPT_URL.includes('spreadsheets/d/')) {
-    console.warn('VITE_GOOGLE_SCRIPT_URL is a Google Sheet URL, not a Web App URL.');
-    return false;
-  }
-
-  if (SCRIPT_URL.includes('script.google.com/home')) {
-    console.warn('VITE_GOOGLE_SCRIPT_URL is the Apps Script Home URL, not the deployed Web App URL.');
-    return false;
-  }
-
-  try {
-    const url = new URL(SCRIPT_URL);
-    // Must be an /exec URL for Web Apps
-    if (!url.pathname.includes('/exec')) {
-      console.warn('VITE_GOOGLE_SCRIPT_URL must be a deployed Web App URL ending in /exec.');
-      return false;
-    }
-    return url.protocol === 'https:';
-  } catch (e) {
-    return false;
-  }
+  return true;
 };
 
 const buildUrl = (baseUrl: string, params: Record<string, string> = {}) => {
@@ -93,14 +73,10 @@ export const syncProjectToSheets = async (project: Project): Promise<boolean> =>
   };
 
   try {
-    // Mode 'no-cors' allows sending data to Apps Script without CORs issues for POST,
-    // although we cannot read the response body.
     await fetch(SCRIPT_URL, {
       method: 'POST',
-      mode: 'no-cors',
-      redirect: 'follow',
       headers: {
-        'Content-Type': 'text/plain', // Prevents preflight OPTIONS request
+        'Content-Type': 'application/json',
       },
       body: JSON.stringify(payload),
     });
@@ -117,13 +93,8 @@ export const fetchProjectsFromSheets = async (): Promise<Project[] | null> => {
   }
 
   try {
-    // A simple GET request (no custom headers) is less likely to trigger CORS preflight.
-    // Google Apps Script will handle this via its redirect mechanism.
     const response = await fetch(buildUrl(SCRIPT_URL), {
       method: 'GET',
-      mode: 'cors',
-      credentials: 'omit',
-      redirect: 'follow',
     });
 
     if (!response.ok) {
@@ -170,10 +141,8 @@ export const updateProjectStatusInSheets = async (projectId: string, status: Pro
   try {
     await fetch(SCRIPT_URL, {
       method: 'POST',
-      mode: 'no-cors',
-      redirect: 'follow',
       headers: {
-        'Content-Type': 'text/plain',
+        'Content-Type': 'application/json',
       },
       body: JSON.stringify(payload),
     });
@@ -200,11 +169,7 @@ export const fetchOptionsFromSheets = async (): Promise<ConfigOptions | null> =>
   try {
     const response = await fetch(buildUrl(SCRIPT_URL, { type: 'options' }), {
       method: 'GET',
-      mode: 'cors',
-      credentials: 'omit',
       cache: 'no-cache', // Ensure we get fresh data
-      redirect: 'follow'
-      // DO NOT add any custom headers as it triggers CORS preflight (OPTIONS)
     });
 
     if (!response.ok) {
