@@ -8,13 +8,21 @@ export const isSheetSyncConfigured = () => {
   }
   
   if (SCRIPT_URL.includes('/edit') || SCRIPT_URL.includes('spreadsheets/d/')) {
-    console.warn('VITE_GOOGLE_SCRIPT_URL seems to be a Google Sheet or Editor URL, not a Web App URL. Please deploy your script as a Web App (Deploy > New Deployment).');
+    console.warn('VITE_GOOGLE_SCRIPT_URL is a Google Sheet URL, not a Web App URL.');
+    return false;
+  }
+
+  if (SCRIPT_URL.includes('script.google.com/home')) {
+    console.warn('VITE_GOOGLE_SCRIPT_URL is the Apps Script Home URL, not the deployed Web App URL.');
+    return false;
   }
 
   try {
     const url = new URL(SCRIPT_URL);
-    if (!url.pathname.endsWith('/exec')) {
-      console.warn('VITE_GOOGLE_SCRIPT_URL typically ends with /exec for Google Apps Script Web Apps. Current URL might be incorrect.');
+    // Must be an /exec URL for Web Apps
+    if (!url.pathname.includes('/exec')) {
+      console.warn('VITE_GOOGLE_SCRIPT_URL must be a deployed Web App URL ending in /exec.');
+      return false;
     }
     return url.protocol === 'https:';
   } catch (e) {
@@ -58,10 +66,15 @@ export const syncProjectToSheets = async (project: Project): Promise<boolean> =>
     projectId: project.id,
     title: project.title,
     character: project.character,
+    characterPrompt: project.characterPrompt,
     location: project.location,
+    locationPrompt: project.locationPrompt,
     building: project.building,
+    buildingPrompt: project.buildingPrompt,
     weather: project.weather,
+    weatherPrompt: project.weatherPrompt,
     theme: project.theme,
+    themePrompt: project.themePrompt,
     status: project.status,
     scene1: formatScene(project.prompts[0]),
     scene2: formatScene(project.prompts[1]),
@@ -104,6 +117,7 @@ export const fetchProjectsFromSheets = async (): Promise<Project[] | null> => {
     const response = await fetch(buildUrl(SCRIPT_URL), {
       method: 'GET',
       mode: 'cors',
+      credentials: 'omit',
       redirect: 'follow',
     });
 
@@ -123,12 +137,15 @@ export const fetchProjectsFromSheets = async (): Promise<Project[] | null> => {
     return data as Project[];
   } catch (error) {
     // "Failed to fetch" is almost always a CORS or Network error with Apps Script
-    if (error instanceof TypeError && error.message === 'Failed to fetch') {
-      console.error('Google Sheets Connection Blocked (CORS):');
-      console.warn('1. Your VITE_GOOGLE_SCRIPT_URL might be wrong or missing.');
-      console.warn('2. Your Apps Script MUST be deployed as "Web App".');
-      console.warn('3. "Who has access" MUST be set to "Anyone" (not Anyone with Google Account).');
-      console.warn('4. Ensure your browser is not blocking the connection (e.g., ad-blockers).');
+    if (error instanceof TypeError && (error.message === 'Failed to fetch' || error.message.includes('NetworkError'))) {
+      console.error('CRITICAL: Google Sheets CORS Block detected.');
+      console.warn('This usually happens because the Google Apps Script is not publicly accessible.');
+      console.warn('FIX STEPS:');
+      console.warn('1. Open your Apps Script editor.');
+      console.warn('2. Click "Deploy" > "Manage deployments".');
+      console.warn('3. Ensure "Who has access" is set to "Anyone" (NOT "Anyone with Google Account").');
+      console.warn('4. Ensure "Execute as" is set to "Me".');
+      console.warn('5. If you changed settings, you MUST create a "New Deployment" (Version: New) to get a new active URL.');
     } else {
       console.error('Sync Error (GET):', error);
     }
@@ -179,8 +196,12 @@ export const fetchOptionsFromSheets = async (): Promise<ConfigOptions | null> =>
     const response = await fetch(buildUrl(SCRIPT_URL, { type: 'options' }), {
       method: 'GET',
       mode: 'cors',
+      credentials: 'omit',
+      cache: 'no-cache', // Ensure we get fresh data
       redirect: 'follow'
+      // DO NOT add any custom headers as it triggers CORS preflight (OPTIONS)
     });
+
     if (!response.ok) {
       if (response.status === 404) {
         throw new Error('Options endpoint not found (404). Ensure your Apps Script has a doGet(e) function handling type="options".');
@@ -190,7 +211,16 @@ export const fetchOptionsFromSheets = async (): Promise<ConfigOptions | null> =>
     const data = await response.json();
     return data as ConfigOptions;
   } catch (error) {
-    if (!(error instanceof Error && error.message.includes('404'))) {
+    if (error instanceof TypeError && (error.message === 'Failed to fetch' || error.message.includes('NetworkError'))) {
+      console.error('CRITICAL: Google Sheets CORS Block detected.');
+      console.warn('This usually happens because the Google Apps Script is not publicly accessible.');
+      console.warn('FIX STEPS:');
+      console.warn('1. Open your Apps Script editor.');
+      console.warn('2. Click "Deploy" > "Manage deployments".');
+      console.warn('3. Ensure "Who has access" is set to "Anyone" (NOT "Anyone with Google Account).');
+      console.warn('4. Ensure "Execute as" is set to "Me".');
+      console.warn('5. If you changed settings, you MUST create a "New Deployment" (Version: New) to get a new active URL.');
+    } else if (!(error instanceof Error && error.message.includes('404'))) {
       console.error('Fetch options failed:', error);
     }
     return null;

@@ -13,10 +13,15 @@ export interface ScenePrompt {
 
 export interface PromptState {
   character: string;
+  characterPrompt: string;
   location: string;
+  locationPrompt: string;
   building: string;
+  buildingPrompt: string;
   weather: string;
+  weatherPrompt: string;
   theme: string;
+  themePrompt: string;
   status: ProductionStatus;
 }
 

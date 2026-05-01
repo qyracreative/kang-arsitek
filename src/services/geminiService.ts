@@ -50,7 +50,7 @@ Scene 4: Glitch transition, blueprint lowers to reveal 25% progress, then raises
 Scene 5: Glitch transition, blueprint lowers to reveal 50% progress, then raises.
 Scene 6: Glitch transition, blueprint lowers to reveal 75% progress, then raises.
 Scene 7: Glitch transition, blueprint lowers to reveal 100% completion, camera moves closer.
-Scene 8: Multiple angles of completed building, glitch transition to architect medium close-up, Dialog: "Ok, selesai."
+Scene 8: Multiple angles of completed building, glitch transition to architect medium close-up, Dialog: "Pembangunan selesai. Siap untuk proyek berikutnya"
 
 IMPORTANT: Return only a raw JSON array of 8 objects, each with:
 "id" (number), "title" (string, e.g. "Scene 1: The Vision"), "visualPrompt" (string), "cameraEffect" (string), "soundEffect" (string), "dialog" (string).
@@ -58,12 +58,20 @@ Do not include markdown code blocks or any other text.`;
 
 export const generateCinematicPrompts = async (state: PromptState): Promise<ScenePrompt[]> => {
   const model = "gemini-3-flash-preview";
+  
+  // Use specialized prompt fields if provided, otherwise fallback to base fields
+  const character = state.characterPrompt || state.character;
+  const location = state.locationPrompt || state.location;
+  const building = state.buildingPrompt || state.building;
+  const weather = state.weatherPrompt || state.weather;
+  const theme = state.themePrompt || state.theme;
+
   const prompt = `
-    Character: ${state.character}
-    Location: ${state.location}
-    Building: ${state.building}
-    Weather: ${state.weather}
-    Theme: ${state.theme}
+    Character: ${character}
+    Location: ${location}
+    Building: ${building}
+    Weather: ${weather}
+    Theme: ${theme}
 
     Use the system instructions to generate the 8 scenes based on these inputs.
   `;
@@ -81,7 +89,14 @@ export const generateCinematicPrompts = async (state: PromptState): Promise<Scen
     const text = response.text;
     if (!text) throw new Error("Empty response from AI");
     
-    return JSON.parse(text) as ScenePrompt[];
+    let scenes = JSON.parse(text) as ScenePrompt[];
+
+    // Post-processing for Scene 8 (User request: Scene 8 must have specific dialogue)
+    if (scenes.length >= 8) {
+      scenes[7].dialog = "Pembangunan selesai. Siap untuk proyek berikutnya";
+    }
+    
+    return scenes;
   } catch (error) {
     console.error("Error generating cinematic prompts:", error);
     throw error;

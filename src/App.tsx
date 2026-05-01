@@ -154,6 +154,7 @@ const ProjectSidebar = ({
   onDeleteProject,
   onRefresh,
   isLoading,
+  syncStatus,
   syncError
 }: { 
   projects: Project[], 
@@ -162,6 +163,7 @@ const ProjectSidebar = ({
   onDeleteProject: (id: string) => void,
   onRefresh: () => void,
   isLoading?: boolean,
+  syncStatus: SyncStatus,
   syncError?: boolean
 }) => (
   <div className="flex flex-col h-full bg-zinc-950/50 backdrop-blur-xl border-r border-zinc-900 overflow-hidden">
@@ -186,11 +188,23 @@ const ProjectSidebar = ({
         <div className="p-4 mx-4 rounded-xl border border-red-500/10 bg-red-500/5 space-y-4 animate-in fade-in zoom-in duration-500">
           <div className="flex items-center gap-2 text-red-500">
             <AlertCircle className="w-4 h-4" />
-            <span className="text-[10px] font-black uppercase tracking-widest">Google Sheets Connection Error</span>
+            <span className="text-[10px] font-black uppercase tracking-widest">Connection Error</span>
           </div>
           <div className="space-y-2">
             <p className="text-[9px] text-zinc-500 font-bold uppercase leading-relaxed">
-              Google Sheets sync is failing. Verify your <span className="text-zinc-300">VITE_GOOGLE_SCRIPT_URL</span> is correct and deployed with <span className="text-zinc-300">"Anyone"</span> access.
+              Google Sheets sync is blocked. This usually happens when the script permissions are restricted.
+            </p>
+            <div className="p-3 bg-zinc-950/50 rounded-xl border border-zinc-800/50 space-y-2">
+              <p className="text-[10px] text-yellow-500/80 font-bold uppercase">Required Fix Steps:</p>
+              <ol className="text-[9px] text-zinc-500 list-decimal list-inside space-y-1 font-medium">
+                <li>Open Apps Script <span className="text-zinc-400">"Deploy"</span> &gt; <span className="text-zinc-400">"Manage deployments"</span></li>
+                <li>Set <span className="text-zinc-400">"Who has access"</span> to <span className="text-zinc-300">"Anyone"</span></li>
+                <li>Set <span className="text-zinc-400">"Execute as"</span> to <span className="text-zinc-300">"Me"</span></li>
+                <li>Click <span className="text-zinc-400">"Deploy"</span> (must create a <span className="text-zinc-300 italic">New Version</span>)</li>
+              </ol>
+            </div>
+            <p className="text-[8px] text-zinc-600 italic">
+              Note: "Anyone with Google Account" will NOT work due to browser security.
             </p>
           </div>
           <button 
@@ -201,18 +215,38 @@ const ProjectSidebar = ({
           </button>
         </div>
       ) : projects.length === 0 ? (
-        <div className="py-20 text-center space-y-4">
-          <Clock className="w-8 h-8 mx-auto text-zinc-800" />
-          <div className="space-y-1">
-            <p className="text-[10px] font-bold text-zinc-700 uppercase tracking-widest leading-relaxed">
+        <div className="py-20 px-6 text-center space-y-6">
+          <div className="relative">
+            <Clock className="w-12 h-12 mx-auto text-zinc-900" />
+            {syncStatus === 'unconfigured' && (
+              <div className="absolute -bottom-1 -right-1 p-1 bg-yellow-500 rounded-full border-2 border-zinc-950">
+                <AlertCircle className="w-3 h-3 text-zinc-950" />
+              </div>
+            )}
+          </div>
+          <div className="space-y-3">
+            <p className="text-[11px] font-black text-zinc-600 uppercase tracking-widest leading-relaxed">
               No history found
             </p>
-            <p className="text-[9px] text-zinc-800 font-medium uppercase">Generate to save project</p>
+            {syncStatus === 'unconfigured' ? (
+              <div className="p-4 rounded-xl bg-yellow-500/5 border border-yellow-500/10 space-y-3">
+                <p className="text-[10px] text-zinc-500 font-bold uppercase leading-relaxed">
+                  Cloud Sync is not active. Connect to Google Sheets to sync your history across devices.
+                </p>
+                <div className="text-[9px] text-yellow-500/70 font-black uppercase tracking-tighter">
+                  Check Environment Variables
+                </div>
+              </div>
+            ) : (
+              <p className="text-[9px] text-zinc-800 font-bold uppercase tracking-widest">
+                Generate your first project to save history
+              </p>
+            )}
           </div>
         </div>
       ) : (
         <AnimatePresence mode="popLayout" initial={false}>
-          {projects.sort((a, b) => b.createdAt - a.createdAt).map(project => (
+          {[...projects].sort((a, b) => b.createdAt - a.createdAt).map(project => (
             <ProjectCard 
               key={project.id} 
               project={project} 
@@ -277,36 +311,85 @@ const PromptForm = ({ state, setState, onGenerate, isGenerating }: {
     </h2>
 
     <div className="space-y-5">
-      <InputField 
-        label="Character" 
-        icon={<User className="w-3.5 h-3.5" />}
-        value={state.character}
-        onChange={(v) => setState(prev => ({ ...prev, character: v }))}
-      />
-      <InputField 
-        label="Location" 
-        icon={<MapPin className="w-3.5 h-3.5" />}
-        value={state.location}
-        onChange={(v) => setState(prev => ({ ...prev, location: v }))}
-      />
-      <InputField 
-        label="Building" 
-        icon={<Building2 className="w-3.5 h-3.5" />}
-        value={state.building}
-        onChange={(v) => setState(prev => ({ ...prev, building: v }))}
-      />
-      <InputField 
-        label="Weather" 
-        icon={<CloudSun className="w-3.5 h-3.5" />}
-        value={state.weather}
-        onChange={(v) => setState(prev => ({ ...prev, weather: v }))}
-      />
-      <InputField 
-        label="Theme" 
-        icon={<Palette className="w-3.5 h-3.5" />}
-        value={state.theme}
-        onChange={(v) => setState(prev => ({ ...prev, theme: v }))}
-      />
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+        <InputField 
+          label="Character" 
+          icon={<User className="w-3.5 h-3.5" />}
+          value={state.character}
+          onChange={(v) => setState(prev => ({ ...prev, character: v }))}
+          rows={1}
+        />
+        <InputField 
+          label="Character prompt" 
+          icon={<User className="w-3.5 h-3.5 opacity-50" />}
+          value={state.characterPrompt}
+          onChange={(v) => setState(prev => ({ ...prev, characterPrompt: v }))}
+        />
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+        <InputField 
+          label="Location" 
+          icon={<MapPin className="w-3.5 h-3.5" />}
+          value={state.location}
+          onChange={(v) => setState(prev => ({ ...prev, location: v }))}
+          rows={1}
+        />
+        <InputField 
+          label="Location prompt" 
+          icon={<MapPin className="w-3.5 h-3.5 opacity-50" />}
+          value={state.locationPrompt}
+          onChange={(v) => setState(prev => ({ ...prev, locationPrompt: v }))}
+        />
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+        <InputField 
+          label="Building" 
+          icon={<Building2 className="w-3.5 h-3.5" />}
+          value={state.building}
+          onChange={(v) => setState(prev => ({ ...prev, building: v }))}
+          rows={1}
+        />
+        <InputField 
+          label="Building prompt" 
+          icon={<Building2 className="w-3.5 h-3.5 opacity-50" />}
+          value={state.buildingPrompt}
+          onChange={(v) => setState(prev => ({ ...prev, buildingPrompt: v }))}
+        />
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+        <InputField 
+          label="Weather" 
+          icon={<CloudSun className="w-3.5 h-3.5" />}
+          value={state.weather}
+          onChange={(v) => setState(prev => ({ ...prev, weather: v }))}
+          rows={1}
+        />
+        <InputField 
+          label="Weather prompt" 
+          icon={<CloudSun className="w-3.5 h-3.5 opacity-50" />}
+          value={state.weatherPrompt}
+          onChange={(v) => setState(prev => ({ ...prev, weatherPrompt: v }))}
+        />
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+        <InputField 
+          label="Theme" 
+          icon={<Palette className="w-3.5 h-3.5" />}
+          value={state.theme}
+          onChange={(v) => setState(prev => ({ ...prev, theme: v }))}
+          rows={1}
+        />
+        <InputField 
+          label="Theme prompt" 
+          icon={<Palette className="w-3.5 h-3.5 opacity-50" />}
+          value={state.themePrompt}
+          onChange={(v) => setState(prev => ({ ...prev, themePrompt: v }))}
+        />
+      </div>
     </div>
 
     <button
@@ -412,12 +495,13 @@ const SceneCard = ({ scene, onCopy, isCopied }: SceneCardProps) => (
   </motion.div>
 );
 
-function InputField({ label, icon, value, onChange, placeholder }: { 
+function InputField({ label, icon, value, onChange, placeholder, rows = 2 }: { 
   label: string, 
   icon: React.ReactNode, 
   value: string, 
   onChange: (v: string) => void,
-  placeholder?: string
+  placeholder?: string,
+  rows?: number
 }) {
   return (
     <div className="space-y-2">
@@ -430,7 +514,7 @@ function InputField({ label, icon, value, onChange, placeholder }: {
           value={value}
           onChange={(e) => onChange(e.target.value)}
           placeholder={placeholder || `Enter ${label.toLowerCase()}...`}
-          rows={2}
+          rows={rows}
           className="w-full bg-zinc-950/50 border border-zinc-800/50 rounded-xl px-4 py-3 text-xs md:text-sm text-zinc-300 outline-none focus:border-yellow-500/40 focus:ring-1 focus:ring-yellow-500/20 transition-all hover:bg-zinc-950 resize-none custom-scrollbar"
         />
       </div>
@@ -492,6 +576,16 @@ export default function App() {
       
       projectMap.set(p.id, {
         ...p,
+        character: p.character || '',
+        characterPrompt: p.characterPrompt || '',
+        location: p.location || '',
+        locationPrompt: p.locationPrompt || '',
+        building: p.building || '',
+        buildingPrompt: p.buildingPrompt || '',
+        weather: p.weather || '',
+        weatherPrompt: p.weatherPrompt || '',
+        theme: p.theme || '',
+        themePrompt: p.themePrompt || '',
         createdAt: timestamp,
         prompts: sanitizedPrompts
       });
@@ -500,13 +594,31 @@ export default function App() {
     return Array.from(projectMap.values());
   };
 
+  // Helper to merge local and remote projects
+  const mergeProjects = (local: Project[], remote: Project[]): Project[] => {
+    const projectMap = new Map<string, Project>();
+    
+    // Add local first
+    local.forEach(p => projectMap.set(p.id, p));
+    
+    // Remote overwrites local if ID matches (more up to date usually)
+    remote.forEach(p => projectMap.set(p.id, p));
+    
+    return Array.from(projectMap.values());
+  };
+
   const [currentProjectId, setCurrentProjectId] = useState<string | null>(null);
   const [state, setState] = useState<PromptState>({
     character: '',
+    characterPrompt: '',
     location: '',
+    locationPrompt: '',
     building: '',
+    buildingPrompt: '',
     weather: '',
+    weatherPrompt: '',
     theme: '',
+    themePrompt: '',
     status: 'Draft',
   });
 
@@ -519,22 +631,19 @@ export default function App() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
 
-    const character = params.get('character') || '';
-    const location = params.get('location') || '';
-    const building = params.get('building') || '';
-    const weather = params.get('weather') || '';
-    const theme = params.get('theme') || '';
-
-    if (character || location || building || weather || theme) {
-      setState(prev => ({
-        ...prev,
-        character,
-        location,
-        building,
-        weather,
-        theme
-      }));
-    }
+    setState(prev => ({
+      ...prev,
+      character: params.get('character') || prev.character,
+      characterPrompt: params.get('characterPrompt') || prev.characterPrompt,
+      location: params.get('location') || prev.location,
+      locationPrompt: params.get('locationPrompt') || prev.locationPrompt,
+      building: params.get('building') || prev.building,
+      buildingPrompt: params.get('buildingPrompt') || prev.buildingPrompt,
+      weather: params.get('weather') || prev.weather,
+      weatherPrompt: params.get('weatherPrompt') || prev.weatherPrompt,
+      theme: params.get('theme') || prev.theme,
+      themePrompt: params.get('themePrompt') || prev.themePrompt,
+    }));
   }, []);
   const lastOptionsHashRef = useRef<string>('');
 
@@ -589,7 +698,8 @@ export default function App() {
       }
 
       if (sheetsProjects) {
-        setProjects(sanitizeProjects(sheetsProjects));
+        const sanitizedRemote = sanitizeProjects(sheetsProjects);
+        setProjects(prev => mergeProjects(prev, sanitizedRemote));
         if (!silent) setSyncStatus('idle');
       } else {
         if (!silent) setSyncStatus('failed');
@@ -656,12 +766,17 @@ export default function App() {
       setGeneratedPrompts(scenes);
       
       // Auto save new project
+      const today = new Date().toISOString().split('T')[0];
+      const characterName = state.character.trim().split(/[\n,]/)[0] || 'Unknown';
+      const buildingName = state.building.trim().split(/[(\n]/)[0].trim() || 'Building';
+      const newProjectId = `${today}/${characterName}`;
+
       const newProject: Project = {
         ...state,
-        id: crypto.randomUUID?.() || Date.now().toString(),
-        title: `${state.building.split(' ').slice(0, 3).join(' ')} at ${state.location.split(' ').slice(0, 2).join(' ')}`,
+        id: newProjectId,
+        title: `${characterName} membangun ${buildingName}`,
         prompts: scenes,
-        status: 'Generated',
+        status: 'Draft', // Set to Draft initially until synced
         createdAt: Date.now()
       };
 
@@ -715,10 +830,15 @@ export default function App() {
     setCurrentProjectId(id);
     setState({
       character: project.character,
+      characterPrompt: project.characterPrompt || '',
       location: project.location,
+      locationPrompt: project.locationPrompt || '',
       building: project.building,
+      buildingPrompt: project.buildingPrompt || '',
       weather: project.weather,
+      weatherPrompt: project.weatherPrompt || '',
       theme: project.theme,
+      themePrompt: project.themePrompt || '',
       status: project.status,
     });
     setGeneratedPrompts(project.prompts);
@@ -760,6 +880,7 @@ export default function App() {
           onDeleteProject={handleDeleteProject}
           onRefresh={() => refreshData()}
           isLoading={isLoadingHistory}
+          syncStatus={syncStatus}
           syncError={syncStatus === 'failed'}
         />
       </aside>
