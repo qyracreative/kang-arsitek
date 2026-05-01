@@ -12,19 +12,19 @@
 
 function doPost(e) {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
-  var sheet = ss.getSheetByName("Projects");
+  var sheet = ss.getSheetByName("projects");
   
   // Create sheet if it doesn't exist
   if (!sheet) {
-    sheet = ss.insertSheet("Projects");
+    sheet = ss.insertSheet("projects");
     sheet.appendRow([
       "Project ID", "Title", "Character", "Location", "Building", 
       "Weather", "Theme", "Status", 
       "Scene1", "Scene2", "Scene3", "Scene4", 
       "Scene5", "Scene6", "Scene7", "Scene8", 
-      "Created At"
+      "Created At", "reelCaption", "ytShortTitle", "ytShortDesc", "ytShortHash", "tiktokCaption"
     ]);
-    sheet.getRange(1, 1, 1, 17).setFontWeight("bold").setBackground("#f3f3f3");
+    sheet.getRange(1, 1, 1, 22).setFontWeight("bold").setBackground("#f3f3f3");
     sheet.setFrozenRows(1);
   }
 
@@ -62,27 +62,32 @@ function saveOrUpdateProject(sheet, data) {
   }
 
   var rowData = [
-    data.projectId,
-    data.title,
-    data.character,
-    data.location,
-    data.building,
-    data.weather,
-    data.theme,
-    data.status,
-    data.scene1,
-    data.scene2,
-    data.scene3,
-    data.scene4,
-    data.scene5,
-    data.scene6,
-    data.scene7,
-    data.scene8,
-    data.createdAt
+    data.projectId || "",
+    data.title || "",
+    data.character || "",
+    data.location || "",
+    data.building || "",
+    data.weather || "",
+    data.theme || "",
+    data.status || "Draft",
+    data.scene1 || "",
+    data.scene2 || "",
+    data.scene3 || "",
+    data.scene4 || "",
+    data.scene5 || "",
+    data.scene6 || "",
+    data.scene7 || "",
+    data.scene8 || "",
+    data.createdAt || "",
+    data.reelCaption || "",
+    data.ytShortTitle || "",
+    data.ytShortDesc || "",
+    data.ytShortHash || "",
+    data.tiktokCaption || ""
   ];
 
   if (rowIndex > 0) {
-    sheet.getRange(rowIndex, 1, 1, 17).setValues([rowData]);
+    sheet.getRange(rowIndex, 1, 1, 22).setValues([rowData]);
   } else {
     sheet.appendRow(rowData);
   }
@@ -107,7 +112,7 @@ function doGet(e) {
       .setMimeType(ContentService.MimeType.JSON);
   }
 
-  var sheet = ss.getSheetByName("Projects");
+  var sheet = ss.getSheetByName("projects");
   
   if (!sheet) {
     return ContentService.createTextOutput(JSON.stringify([]))
@@ -134,7 +139,12 @@ function doGet(e) {
       theme: String(row[6] || ""),
       status: String(row[7] || "Draft"),
       prompts: [],
-      createdAt: 0
+      createdAt: 0,
+      reelCaption: String(row[17] || ""),
+      ytShortTitle: String(row[18] || ""),
+      ytShortDesc: String(row[19] || ""),
+      ytShortHash: String(row[20] || ""),
+      tiktokCaption: String(row[21] || "")
     };
     
     // Safety check for ID
