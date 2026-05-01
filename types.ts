@@ -58,12 +58,20 @@ Do not include markdown code blocks or any other text.`;
 
 export const generateCinematicPrompts = async (state: PromptState): Promise<ScenePrompt[]> => {
   const model = "gemini-3-flash-preview";
+  
+  // Use specialized prompt fields if provided, otherwise fallback to base fields
+  const character = state.characterPrompt || state.character;
+  const location = state.locationPrompt || state.location;
+  const building = state.buildingPrompt || state.building;
+  const weather = state.weatherPrompt || state.weather;
+  const theme = state.themePrompt || state.theme;
+
   const prompt = `
-    Character: ${state.character}
-    Location: ${state.location}
-    Building: ${state.building}
-    Weather: ${state.weather}
-    Theme: ${state.theme}
+    Character: ${character}
+    Location: ${location}
+    Building: ${building}
+    Weather: ${weather}
+    Theme: ${theme}
 
     Use the system instructions to generate the 8 scenes based on these inputs.
   `;
