@@ -138,7 +138,7 @@ export const fetchProjectsFromSheets = async (): Promise<Project[] | null> => {
       }
       
       if (response.status === 404) {
-        throw new Error(`Google Script URL Mismatch (404). ${errorMsg}`);
+        throw new Error(`Google Script URL Tidak Ditemukan (404). ${errorMsg}. Jika Anda menggunakan Vercel, pastikan Environment Variable VITE_GOOGLE_SCRIPT_URL sudah ditambahkan di Dashboard Vercel dan lakukan Re-deploy.`);
       }
       throw new Error(errorMsg);
     }
@@ -251,7 +251,7 @@ export const fetchOptionsFromSheets = async (): Promise<ConfigOptions | null> =>
       }
       
       if (response.status === 404) {
-        throw new Error(`Google Script URL Mismatch (404). ${errorMsg}`);
+        throw new Error(`Google Script URL Tidak Ditemukan (404). ${errorMsg}. Jika Anda menggunakan Vercel, pastikan Environment Variable VITE_GOOGLE_SCRIPT_URL sudah ditambahkan di Dashboard Vercel dan lakukan Re-deploy.`);
       }
       throw new Error(errorMsg);
     }
