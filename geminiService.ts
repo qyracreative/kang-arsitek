@@ -1,28 +1,25 @@
-export type ProductionStatus = 'Draft' | 'Ready' | 'Generated' | 'Edited' | 'Uploaded';
-export type SyncStatus = 'idle' | 'syncing' | 'synced' | 'failed' | 'unconfigured';
+import { ProductionStatus } from './types';
 
-export interface ScenePrompt {
-  id: number;
-  title: string;
-  visualPrompt: string;
-  cameraEffect: string;
-  soundEffect: string;
-  dialog: string;
-  content?: string; // For legacy support/sheet sync
-}
+export const CHARACTERS = [];
+export const LOCATIONS = [];
+export const BUILDINGS = [];
+export const WEATHER = [];
+export const THEMES = [];
 
-export interface PromptState {
-  character: string;
-  location: string;
-  building: string;
-  weather: string;
-  theme: string;
-  status: ProductionStatus;
-}
+export const GOOGLE_SCRIPT_URL = ""; // SET YOUR GOOGLE APPS SCRIPT WEBAPP URL HERE
 
-export interface Project extends PromptState {
-  id: string;
-  title: string;
-  prompts: ScenePrompt[];
-  createdAt: number;
-}
+export const STATUSES: ProductionStatus[] = [
+  'Draft',
+  'Ready',
+  'Generated',
+  'Edited',
+  'Uploaded',
+];
+
+export const STATUS_COLORS = {
+  Draft: "bg-zinc-500/10 text-zinc-400 border-zinc-500/20",
+  Ready: "bg-blue-500/10 text-blue-400 border-blue-500/20",
+  Generated: "bg-yellow-500/10 text-yellow-400 border-yellow-500/20",
+  Edited: "bg-purple-500/10 text-purple-400 border-purple-500/20",
+  Uploaded: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
+};
