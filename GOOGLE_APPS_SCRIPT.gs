@@ -25,7 +25,7 @@ function doPost(e) {
         "Weather", "Theme", "Status", 
         "Scene1", "Scene2", "Scene3", "Scene4", 
         "Scene5", "Scene6", "Scene7", "Scene8", 
-        "Created At", "reelCaption (Col R)", "ytShortTitle", "ytShortDesc", "ytShortHash", "tiktokCaption"
+        "Created At", "reelCaption", "ytShortTitle", "ytShortDesc", "ytShortHash", "tiktokCaption"
       ]);
       sheet.getRange(1, 1, 1, 22).setFontWeight("bold").setBackground("#f3f3f3");
       sheet.setFrozenRows(1);

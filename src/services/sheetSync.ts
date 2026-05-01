@@ -1,7 +1,14 @@
 import { Project, ProductionStatus, ScenePrompt } from '../types';
 
 // Use our internal proxy endpoint to avoid CORS issues with Google Apps Script
-const SCRIPT_URL = '/api/sheets';
+const getScriptUrl = () => {
+  if (typeof window !== 'undefined') {
+    return `${window.location.origin}/api/sheets`;
+  }
+  return '/api/sheets';
+};
+
+const SCRIPT_URL = getScriptUrl();
 
 // We now check if the real URL is configured in the environment (on the server side)
 // But for the client, we just need to know if the proxy is "available"
@@ -72,17 +79,39 @@ export const syncProjectToSheets = async (project: Project): Promise<boolean> =>
     createdAt: new Date(project.createdAt).toISOString(),
   };
 
+  console.log('Sending payload to proxy:', payload);
+
   try {
-    await fetch(SCRIPT_URL, {
+    const response = await fetch(SCRIPT_URL, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify(payload),
     });
+
+    if (!response.ok) {
+      const text = await response.text();
+      let errorMsg = `Proxy responded with error: ${response.status}`;
+      try {
+        const errorJson = JSON.parse(text);
+        if (errorJson.error) errorMsg += ` - ${errorJson.error}`;
+        if (errorJson.details) errorMsg += ` (${errorJson.details})`;
+      } catch (e) {
+        errorMsg += ` - ${text}`;
+      }
+      console.error(errorMsg);
+      return false;
+    }
+
     return true; 
   } catch (error) {
-    console.error('Sheet Sync Error (POST):', error);
+    if (error instanceof TypeError && (error.message === 'Failed to fetch' || error.message.includes('NetworkError') || error.message.includes('Load failed'))) {
+      console.error('CRITICAL: Google Sheets Fetch Error (Possible CORS or Connectivity issue):', error);
+      console.warn('Endpoint attempted:', SCRIPT_URL);
+    } else {
+      console.error('Sheet Sync Error (POST):', error);
+    }
     return false;
   }
 };
@@ -98,23 +127,41 @@ export const fetchProjectsFromSheets = async (): Promise<Project[] | null> => {
     });
 
     if (!response.ok) {
-      if (response.status === 404) {
-        throw new Error('Script URL not found (404). Check your VITE_GOOGLE_SCRIPT_URL.');
+      const text = await response.text();
+      let errorMsg = `Sync Server Error: ${response.status}`;
+      try {
+        const errorJson = JSON.parse(text);
+        if (errorJson.error) errorMsg = errorJson.error;
+        if (errorJson.details) errorMsg += ` (${errorJson.details})`;
+      } catch (e) {
+        errorMsg += ` - ${text.substring(0, 100)}`;
       }
-      throw new Error(`Cloud Error: ${response.status} ${response.statusText}`);
+      
+      if (response.status === 404) {
+        throw new Error(`Google Script URL Mismatch (404). ${errorMsg}`);
+      }
+      throw new Error(errorMsg);
     }
 
-    const data = await response.json();
-    
-    if (!Array.isArray(data)) {
-      throw new Error('Invalid data format: Expected an array of projects.');
-    }
+    const text = await response.text();
+    try {
+      const data = JSON.parse(text);
+      
+      if (!Array.isArray(data)) {
+        throw new Error('Invalid data format: Expected an array of projects.');
+      }
 
-    return data as Project[];
+      return data as Project[];
+    } catch (e) {
+      if (text.startsWith('<!doctype') || text.includes('google-signin')) {
+        throw new Error('Google is asking for login. Please check "Who has access" is set to "Anyone" in your Apps Script deployment.');
+      }
+      throw new Error(`Failed to parse JSON from Google. Response started with: ${text.substring(0, 100)}...`);
+    }
   } catch (error) {
-    // "Failed to fetch" is almost always a CORS or Network error with Apps Script
-    if (error instanceof TypeError && (error.message === 'Failed to fetch' || error.message.includes('NetworkError'))) {
-      console.error('CRITICAL: Google Sheets CORS Block detected.');
+    if (error instanceof TypeError && (error.message === 'Failed to fetch' || error.message.includes('NetworkError') || error.message.includes('Load failed'))) {
+      console.error('CRITICAL: Google Sheets Fetch Error (Possible CORS or Connectivity issue):', error);
+      console.warn('Endpoint attempted:', SCRIPT_URL);
       console.warn('This usually happens because the Google Apps Script is not publicly accessible.');
       console.warn('FIX STEPS:');
       console.warn('1. Open your Apps Script editor.');
@@ -139,16 +186,36 @@ export const updateProjectStatusInSheets = async (projectId: string, status: Pro
   };
 
   try {
-    await fetch(SCRIPT_URL, {
+    const response = await fetch(SCRIPT_URL, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify(payload),
     });
-    return true;
+
+    if (!response.ok) {
+      const text = await response.text();
+      let errorMsg = `Proxy responded with error: ${response.status}`;
+      try {
+        const errorJson = JSON.parse(text);
+        if (errorJson.error) errorMsg += ` - ${errorJson.error}`;
+        if (errorJson.details) errorMsg += ` (${errorJson.details})`;
+      } catch (e) {
+        errorMsg += ` - ${text}`;
+      }
+      console.error(errorMsg);
+      return false;
+    }
+
+    return true; 
   } catch (error) {
-    console.error('Sheet Sync Error (Update):', error);
+    if (error instanceof TypeError && (error.message === 'Failed to fetch' || error.message.includes('NetworkError') || error.message.includes('Load failed'))) {
+      console.error('CRITICAL: Google Sheets Fetch Error (Possible CORS or Connectivity issue):', error);
+      console.warn('Endpoint attempted:', SCRIPT_URL);
+    } else {
+      console.error('Sheet Sync Error (Update):', error);
+    }
     return false;
   }
 };
@@ -173,16 +240,35 @@ export const fetchOptionsFromSheets = async (): Promise<ConfigOptions | null> =>
     });
 
     if (!response.ok) {
-      if (response.status === 404) {
-        throw new Error('Options endpoint not found (404). Ensure your Apps Script has a doGet(e) function handling type="options".');
+      const text = await response.text();
+      let errorMsg = `Sync Server Error: ${response.status}`;
+      try {
+        const errorJson = JSON.parse(text);
+        if (errorJson.error) errorMsg = errorJson.error;
+        if (errorJson.details) errorMsg += ` (${errorJson.details})`;
+      } catch (e) {
+        errorMsg += ` - ${text.substring(0, 100)}`;
       }
-      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      
+      if (response.status === 404) {
+        throw new Error(`Google Script URL Mismatch (404). ${errorMsg}`);
+      }
+      throw new Error(errorMsg);
     }
-    const data = await response.json();
-    return data as ConfigOptions;
+    const text = await response.text();
+    try {
+      const data = JSON.parse(text);
+      return data as ConfigOptions;
+    } catch (e) {
+      if (text.startsWith('<!doctype') || text.includes('google-signin')) {
+        throw new Error('Google is asking for login. Please check "Who has access" is set to "Anyone" in your Apps Script deployment.');
+      }
+      throw new Error(`Failed to parse JSON from Google. Response started with: ${text.substring(0, 100)}...`);
+    }
   } catch (error) {
-    if (error instanceof TypeError && (error.message === 'Failed to fetch' || error.message.includes('NetworkError'))) {
-      console.error('CRITICAL: Google Sheets CORS Block detected.');
+    if (error instanceof TypeError && (error.message === 'Failed to fetch' || error.message.includes('NetworkError') || error.message.includes('Load failed'))) {
+      console.error('CRITICAL: Google Sheets Fetch Error (Possible CORS or Connectivity issue):', error);
+      console.warn('Endpoint attempted:', SCRIPT_URL);
       console.warn('This usually happens because the Google Apps Script is not publicly accessible.');
       console.warn('FIX STEPS:');
       console.warn('1. Open your Apps Script editor.');
